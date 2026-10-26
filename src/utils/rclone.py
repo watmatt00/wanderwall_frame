@@ -7,6 +7,8 @@ Provides:
 - rclone_sync: Sync from remote to local
 - rclone_copyto: Upload a single local file to a remote destination
 - rclone_copy_dir: Upload a local folder's files without overwriting
+- rclone_sync_up: Make a cloud folder match a local folder
+- rclone_purge: Delete a cloud folder
 - rclone_list_dirs: List the top-level folders of a remote
 - rclone_count: Count files on remote
 - rclone_check: Check if remote is accessible
@@ -304,6 +306,51 @@ async def rclone_copy_dir(local_dir: Path, remote_dest: str) -> RcloneResult:
         return RcloneResult(success=False, error="rclone not found. Please install rclone.")
     except Exception as e:
         return RcloneResult(success=False, error=str(e))
+
+
+def _is_remote_subfolder(remote: str) -> bool:
+    """True for "name:folder…": a valid remote with a folder, never the whole account."""
+    return _validate_remote(remote) and not remote.startswith("/") and bool(remote.split(":", 1)[1].strip("/"))
+
+
+async def _run_rclone(cmd: list[str], what: str) -> RcloneResult:
+    """Run an rclone command and wrap the outcome."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await proc.communicate()
+        output = stdout.decode()
+        if proc.returncode == 0:
+            return RcloneResult(success=True, files_transferred=_parse_transferred(output), output=output)
+        return RcloneResult(success=False, error=f"rclone {what} exited {proc.returncode}", output=output)
+    except FileNotFoundError:
+        return RcloneResult(success=False, error="rclone not found. Please install rclone.")
+    except Exception as e:
+        return RcloneResult(success=False, error=str(e))
+
+
+async def rclone_sync_up(local_dir: Path, remote_dest: str) -> RcloneResult:
+    """
+    Make a remote folder match a local folder (rclone sync, local → cloud).
+
+    Files in the cloud folder that aren't in the local one are deleted, so the
+    destination must be a folder, never the root of the account.
+    """
+    if not _validate_path(str(local_dir)) or not Path(local_dir).is_dir():
+        return RcloneResult(success=False, error=f"Invalid local folder: {local_dir}")
+    if not _is_remote_subfolder(remote_dest):
+        return RcloneResult(success=False, error=f"Invalid remote folder: {remote_dest}")
+    return await _run_rclone(["rclone", "sync", str(local_dir), remote_dest, "--stats-one-line", "-v"], "sync")
+
+
+async def rclone_purge(remote_folder: str) -> RcloneResult:
+    """Delete a remote folder and everything in it (rclone purge). Never the root of the account."""
+    if not _is_remote_subfolder(remote_folder):
+        return RcloneResult(success=False, error=f"Invalid remote folder: {remote_folder}")
+    return await _run_rclone(["rclone", "purge", remote_folder], "purge")
 
 
 async def rclone_list_dirs(remote: str) -> list[str] | None:

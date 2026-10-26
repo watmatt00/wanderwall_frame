@@ -191,6 +191,22 @@ class InviteStorage:
             logger.info(f"Invite {invite_id} revoked")
             return True
 
+    def revoke_all(self) -> int:
+        """
+        Delete every invite, claimed or not (demo frame reset, PL-151).
+
+        Returns:
+            Number of unclaimed invites that stopped working
+        """
+        with self._lock:
+            invites = self._load()
+            if not invites:
+                return 0
+            pending = sum(1 for i in invites if not i.claimed)
+            self._save([])
+            logger.info(f"All invites removed ({pending} unclaimed)")
+            return pending
+
 
 # Global storage instance
 invite_storage = InviteStorage()

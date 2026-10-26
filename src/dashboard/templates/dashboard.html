@@ -762,6 +762,28 @@
                     <button class="btn btn-primary" id="btn-demo-on" style="background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:#fbbf24;">Turn On Demo Mode</button>
                     {% endif %}
                     <div id="demo-mode-status" class="status-message" style="display:none;margin-top:0.75rem;"></div>
+                    <!-- Demo frame reset (PL-151) -->
+                    <div style="margin-top:1rem;padding:1rem;background:rgba(255,255,255,0.05);border-radius:8px;">
+                        <p style="font-weight:600;margin:0 0 0.5rem;">Reset the demo frame</p>
+                        <p style="color:#94a3b8;font-size:0.85rem;margin:0 0 0.75rem;">
+                            <strong>Save as Baseline</strong> keeps the albums, their photos, the showing album, frame name, rotation and sync interval.
+                            <strong>Reset to Baseline</strong> puts them back, deletes other albums and every other cloud folder on this Koofr account,
+                            removes demo and Share phones, invites and upload links, and turns demo mode on for 14 more days with the same codes.
+                            Your own Manager pairing stays.
+                        </p>
+                        <p style="color:#e5e7eb;font-size:0.85rem;margin:0 0 0.75rem;">
+                            {% if demo_baseline %}
+                            <span style="color:#9ca3af;">Baseline:</span> <span id="demo-baseline-saved" data-saved="{{ demo_baseline.saved_at }}"></span> ·
+                            {{ demo_baseline.albums | length }} album{{ '' if demo_baseline.albums | length == 1 else 's' }}
+                            ({% for a in demo_baseline.albums %}{{ a.name }}: {{ a.photos }}{{ ', ' if not loop.last }}{% endfor %})
+                            {% else %}
+                            <span style="color:#9ca3af;">No baseline saved yet.</span>
+                            {% endif %}
+                        </p>
+                        <button class="btn secondary" id="btn-demo-baseline">Save as Baseline</button>
+                        <button class="btn btn-primary" id="btn-demo-reset" style="margin-left:0.5rem;" {% if not demo_baseline %}disabled{% endif %}>Reset to Baseline</button>
+                        <div id="demo-reset-status" class="status-message" style="display:none;margin-top:0.75rem;"></div>
+                    </div>
                     <div style="margin-top:1rem;padding:1rem;background:rgba(255,255,255,0.05);border-radius:8px;">
                         <p style="font-weight:600;margin:0 0 0.5rem;">After the review:</p>
                         <ol style="margin:0;padding-left:1.25rem;color:#d1d5db;font-size:0.85rem;line-height:1.6;">

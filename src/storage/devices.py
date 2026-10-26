@@ -161,6 +161,24 @@ class DeviceStorage:
                 logger.info(f"Removed {removed} demo device(s)")
             return removed
 
+    def remove_demo_and_contributor_devices(self) -> int:
+        """
+        Remove every device paired with a demo code and every contributor (Share app).
+
+        Used by the demo frame reset (PL-151); normally paired admins stay.
+
+        Returns:
+            Number of devices removed
+        """
+        with self._lock:
+            devices = self._load()
+            kept = [d for d in devices if not d.demo and d.role != "contributor"]
+            removed = len(devices) - len(kept)
+            if removed:
+                self._save(kept)
+                logger.info(f"Removed {removed} demo/contributor device(s)")
+            return removed
+
     def count_demo_devices(self) -> int:
         """Count devices paired with a demo code."""
         with self._lock:

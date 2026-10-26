@@ -176,6 +176,7 @@ Use these stable IDs in test plans, bug reports, and development references:
 
   **🍎 Demo Mode Card** (only when `demo.allowed: true` is set by hand, PL-015):
   - Turn On / Turn Off Demo Mode, Generate New Codes; reviewer codes and their expiry
+  - Reset the demo frame (PL-151): Save as Baseline, Reset to Baseline (disabled until a baseline is saved), baseline date and albums with photo counts
 
   **🎉 Party Mode Card** (▸ Show, bottom):
   - Shows what's displaying; enabling needs a type-to-confirm; stops cloud sync and the WiFi watchdog so the frame runs as a standalone slideshow (`POST /api/settings/party`)

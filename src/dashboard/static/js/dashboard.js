@@ -3417,6 +3417,65 @@ function updateDemoBanner(demo) {
     }
 })();
 
+/** Demo frame reset (PL-151): Save as Baseline and Reset to Baseline on the Demo Mode card. */
+(function initDemoReset() {
+    const saveBtn  = document.getElementById('btn-demo-baseline');
+    const resetBtn = document.getElementById('btn-demo-reset');
+    const statusEl = document.getElementById('demo-reset-status');
+    const saved    = document.getElementById('demo-baseline-saved');
+    if (!saveBtn) return;
+    if (saved && saved.dataset.saved) saved.textContent = new Date(saved.dataset.saved).toLocaleString();
+
+    function showStatus(msg, type) {
+        statusEl.textContent = msg;
+        statusEl.className = 'status-message ' + type;
+        statusEl.style.display = 'block';
+    }
+
+    function resetSummary(d) {
+        const albums = d.albums.map(a => `${a.name} (${plural(a.photos, 'photo')}${a.synced ? '' : ', sync failed'})`).join(', ');
+        const parts = [
+            `Restored: ${albums}.`,
+            `Removed ${plural(d.phones_removed, 'phone')}, ${plural(d.invites_removed, 'invite')}, ${plural(d.upload_links_removed, 'upload link')}.`,
+            `Deleted ${plural(d.albums_deleted, 'album')} and ${plural(d.cloud_folders_deleted, 'cloud folder')}.`,
+        ];
+        if (d.settings_restored.length) parts.push(`Settings put back: ${d.settings_restored.join(', ')}.`);
+        parts.push(`Demo mode on, ${plural(d.demo.days_left, 'day')} left.`);
+        return parts.join('\n');
+    }
+
+    async function run(url, busyMsg, done) {
+        [saveBtn, resetBtn].forEach(b => { b.disabled = true; });
+        showStatus(busyMsg, 'info');
+        try {
+            const resp = await fetch(url, { method: 'POST' });
+            const data = await resp.json();
+            if (data.ok) {
+                alert(done(data));
+                location.reload();
+                return;
+            }
+            showStatus('Error: ' + (data.error || 'Unknown failure'), 'error');
+        } catch (err) {
+            showStatus('Network error. Please try again.', 'error');
+        }
+        saveBtn.disabled = false;
+        resetBtn.disabled = !saved;
+    }
+
+    saveBtn.addEventListener('click', () => {
+        if (!confirm('Save the albums, photos, showing album and settings as they are now as the demo baseline?'
+            + (saved ? '\n\nThis replaces the current baseline.' : ''))) return;
+        run('/api/settings/demo/baseline', 'Saving the baseline…',
+            d => `Baseline saved: ${plural(d.baseline.albums.length, 'album')}, ${plural(d.baseline.photos, 'photo')}.`);
+    });
+    resetBtn.addEventListener('click', () => {
+        if (!confirm('Reset the demo frame to the baseline?\n\nDeletes other albums and every other cloud folder on this Koofr account, '
+            + 'removes demo and Share phones, invites and upload links. Your Manager pairing stays.')) return;
+        run('/api/settings/demo/reset', 'Resetting the demo frame… this can take a few minutes.', resetSummary);
+    });
+})();
+
 
 // =============================================================================
 // RECOVER ALBUMS (PL-147 follow-up)

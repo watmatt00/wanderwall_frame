@@ -57,7 +57,7 @@ from src.utils.rclone import count_local_files, rclone_count, rclone_list_remote
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
-from src.services import album_service, demo_service, frame_registry, power_service, recovery_service
+from src.services import album_service, demo_reset_service, demo_service, frame_registry, power_service, recovery_service
 
 logger = logging.getLogger(__name__)
 
@@ -356,6 +356,7 @@ async def dashboard_home(request: Request):
         "demo": demo,
         "registry": frame_registry.banner(),
         "demo_qr": _demo_qr_codes(demo),
+        "demo_baseline": demo_reset_service.baseline_info() if demo["allowed"] else None,
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -1416,6 +1417,40 @@ async def regenerate_demo_codes():
         return JSONResponse(status_code=403, content={"ok": False, "error": str(e)})
     except Exception as e:
         logger.error(f"Failed to regenerate demo codes: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/api/settings/demo/baseline")
+async def save_demo_baseline():
+    """
+    Save the frame's albums, photos, showing album and settings as the demo baseline (PL-151).
+
+    Only on frames with demo.allowed and a dedicated Koofr account. LAN-only endpoint, no JWT auth required.
+    """
+    try:
+        return {"ok": True, "baseline": await demo_reset_service.save_baseline()}
+    except demo_reset_service.DemoResetError as e:
+        return JSONResponse(status_code=e.status_code, content={"ok": False, "error": e.message})
+    except Exception as e:
+        logger.error(f"Failed to save the demo baseline: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/api/settings/demo/reset")
+async def reset_demo_frame():
+    """
+    Put the demo frame back to its baseline (PL-151): phones, invites, upload links,
+    albums and cloud folders, settings; demo mode on for 14 more days.
+
+    Only on frames with demo.allowed and a dedicated Koofr account. LAN-only endpoint, no JWT auth required.
+    """
+    try:
+        return {"ok": True, **await demo_reset_service.reset_to_baseline()}
+    except demo_reset_service.DemoResetError as e:
+        logger.error(f"Demo frame reset stopped: {e.message}")
+        return JSONResponse(status_code=e.status_code, content={"ok": False, "error": e.message})
+    except Exception as e:
+        logger.error(f"Demo frame reset failed: {e}")
         return {"ok": False, "error": str(e)}
 
 

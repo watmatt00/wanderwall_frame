@@ -341,6 +341,8 @@ Every restore goes staging → the album's cloud folder → the album, so the ne
 | `/api/settings/party` | POST | `{"enabled": true}`: party mode stops cloud sync and the WiFi watchdog |
 | `/api/settings/demo` | POST | Turn demo mode on (`{"enabled": true}`, 14 days) or off (revokes demo devices). 403 unless `demo.allowed` |
 | `/api/settings/demo/regenerate` | POST | New demo codes and a fresh 14 days; paired demo phones stay paired. 403 unless `demo.allowed` |
+| `/api/settings/demo/baseline` | POST | Save the albums, their photos, the showing album, frame name, rotation and sync interval as the demo baseline (PL-151). 403 unless `demo.allowed`; 409 unless the Koofr account is dedicated, every album has a cloud folder and one is showing |
+| `/api/settings/demo/reset` | POST | Reset the demo frame to the baseline (PL-151): removes demo and contributor phones, invites and Koofr upload links; restores the baseline albums on the frame and in the cloud; deletes other albums and `KFR_*` cloud folders; restores settings; demo mode on for 14 more days. 409 without a baseline, on a shared account or after a Koofr login change |
 | `/pairing/generate` | POST | New pairing code and QR for the Mobile App Pairing card |
 | `/api/devices` | GET | Paired devices for the Paired Devices card |
 | `/devices/{id}/revoke` | POST | Revoke a paired device |

@@ -225,7 +225,12 @@ Reusable pairing codes for an App Store reviewer (PL-015). See `docs/SECURITY.md
    Never on a frame with personal photos or a personal Koofr account.
 2. **Turn it on:** dashboard → Settings → 🍎 Demo Mode → Turn On Demo Mode. The card shows the Manager code and the Contributor code, each with a QR code (Download QR saves a PNG to attach to the App Review notes), plus the Frame URL. The QR codes use the Funnel URL; without one they fall back to the Tailscale IP, which won't work for a reviewer, and the card says so. An amber banner shows on every tab with the days left.
 3. **It lasts 14 days**, then turns itself off and revokes the demo phones. **Generate New Codes** replaces both codes and restarts the 14 days (paired phones stay paired); the old codes then report "expired".
-4. **After the review:** Turn Off Demo Mode (revokes demo phones), then rotate the Koofr app password.
+4. **Baseline and reset (PL-151).** Needs a Koofr account only this frame uses (the album registry marks it `dedicated`). Set the frame up (albums with sample photos, the album to show, name, rotation, sync interval), then Demo Mode card → **Save as Baseline**. It copies the albums' photos to `~/.wanderwall/demo_baseline` with the settings. **Reset to Baseline** before each submission and after a reviewer session:
+   - removes phones paired with a demo code and every Share (contributor) phone (normally paired admins stay), every invite, and every Koofr upload link on the account
+   - makes each baseline album, on the frame and in its cloud folder, hold exactly the saved photos (recreated if deleted, renamed back), shows the saved album, deletes every other album and every other `KFR_*` cloud folder on the account
+   - puts back the frame name, rotation and sync interval, and turns demo mode on for 14 more days with the same codes
+   It refuses if the account isn't dedicated or the Koofr login changed since the baseline was saved. Running it twice is safe.
+5. **After the review:** Turn Off Demo Mode (revokes demo phones), then rotate the Koofr app password.
 
 To stop allowing it, remove `allowed: true` (or set it false) and restart the API; demo mode ends and demo phones are revoked on the next check.
 
