@@ -216,6 +216,7 @@ Until then, Reboot Frame answers "Reboot isn't set up on this frame yet". Re-run
 
 Reusable pairing codes for an App Store reviewer (PL-015). See `docs/SECURITY.md` → Demo Mode for the risks.
 
+0. **Put the review frame on `main`** so a `dev` push can't change it mid-review (RB-07): `bash ~/wanderwall_frame/scripts/update_app.sh --branch=main`. It checks out `main`, runs `main`'s copy of the script and restarts the API. `--branch=dev` moves it back after the review.
 1. **Allow it on the review frame only.** Add this to `~/.wanderwall/config.yaml` on that frame, then `systemctl --user restart wanderwall-api`:
    ```yaml
    demo:

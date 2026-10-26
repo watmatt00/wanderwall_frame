@@ -1,6 +1,10 @@
 #!/bin/bash
 # Idempotent post-pull updater. Run after every git pull to apply service file
 # changes, new apt packages, and enable new services. Safe to run multiple times.
+#
+# Usage: update_app.sh [--branch=dev|main]
+#   --branch  Move the frame to that branch first (e.g. the App Review frame onto
+#             main), run that branch's copy of this script, then restart the API.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,6 +13,18 @@ SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 
 LOG()  { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
 WARN() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] WARNING: $*" >&2; }
+ERR()  { echo "[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2; }
+
+BRANCH=""
+for arg in "$@"; do
+    case "$arg" in
+        --branch=*) BRANCH="${arg#--branch=}" ;;
+        *) ERR "Unknown option: $arg (usage: update_app.sh [--branch=dev|main])"; exit 1 ;;
+    esac
+done
+if [[ -n "$BRANCH" && "$BRANCH" != "dev" && "$BRANCH" != "main" ]]; then
+    ERR "Invalid branch: $BRANCH (allowed: dev, main)"; exit 1
+fi
 
 LOG "update_app.sh starting (project: $PROJECT_DIR)"
 
@@ -22,6 +38,42 @@ if [[ "$CURRENT_REMOTE" == git@github.com:* || "$CURRENT_REMOTE" == ssh://* ]]; 
     LOG "Git remote switched to HTTPS: $HTTPS_REMOTE (was $CURRENT_REMOTE)"
 else
     LOG "Git remote: ${CURRENT_REMOTE:-none} (no change)"
+fi
+
+# ── Step 0b: branch switch (--branch) ─────────────────────────────────────────
+# All in one if-block: bash parses it whole before running it, so the checkout
+# can't change the lines it is about to run. It ends with exit; the rest of
+# this file is the old branch's copy and must not run.
+if [[ -n "$BRANCH" ]]; then
+    CURRENT_BRANCH="$(git -C "$PROJECT_DIR" branch --show-current)"
+    if [[ "$CURRENT_BRANCH" == "$BRANCH" ]]; then
+        LOG "Branch: already on $BRANCH (no change)"
+    else
+        if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain --untracked-files=no)" ]]; then
+            ERR "Failed to switch to $BRANCH: local changes in $PROJECT_DIR (git status)"; exit 1
+        fi
+        if ! git -C "$PROJECT_DIR" fetch origin \
+            || ! git -C "$PROJECT_DIR" checkout "$BRANCH" \
+            || ! git -C "$PROJECT_DIR" pull --ff-only; then
+            ERR "Failed to switch from ${CURRENT_BRANCH:-detached} to $BRANCH (see git output above)"; exit 1
+        fi
+        LOG "Branch switched: ${CURRENT_BRANCH:-detached} -> $BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
+
+        if ! bash "$SCRIPT_DIR/update_app.sh"; then
+            ERR "Failed to run $BRANCH's update_app.sh"; exit 1
+        fi
+
+        systemctl --user restart wanderwall-api.service
+        for _ in $(seq 1 30); do
+            if curl -sf --connect-timeout 2 http://localhost:8000/health > /dev/null 2>&1; then
+                LOG "Service wanderwall-api restarted successfully on $BRANCH"
+                exit 0
+            fi
+            sleep 2
+        done
+        ERR "Failed to restart wanderwall-api: /health not answering after 60 s (journalctl --user -u wanderwall-api)"
+        exit 1
+    fi
 fi
 
 # ── Step 1: APT packages ───────────────────────────────────────────────────────
