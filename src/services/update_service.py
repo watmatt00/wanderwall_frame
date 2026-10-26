@@ -377,7 +377,9 @@ async def start_update_scheduler() -> None:
             elif result.get("up_to_date") is False:
                 logger.info(f"Update available on branch '{result.get('branch', 'unknown')}': remote commit {result.get('remote_commit')}")
                 # Auto-apply if configured
-                if updates.auto_apply:
+                if updates.auto_apply and updates_locked():
+                    logger.info("Auto-apply skipped: demo mode is on (PL-150)")
+                elif updates.auto_apply:
                     logger.info("Auto-apply enabled — running git pull")
                     apply_result = await apply_update()
                     if apply_result["success"]:
@@ -436,6 +438,22 @@ async def get_local_version(repo_path: Optional[Path] = None) -> str:
 # =============================================================================
 # Request handlers shared by the LAN dashboard and the /api/v1 updates routes
 # =============================================================================
+
+
+# Shown in the app when a reviewer tries to update the demo frame (PL-150)
+DEMO_LOCKED_MESSAGE = (
+    "Software updates are turned off on this demo frame. The frame owner applies updates."
+)
+
+
+def updates_locked() -> bool:
+    """
+    True while demo mode is on (PL-150): the reviewer pairs as admin, so the app
+    can't apply updates or change the schedule, and scheduled auto-apply is skipped.
+    The LAN dashboard can still update the frame.
+    """
+    demo = get_settings().demo
+    return demo.allowed and demo.enabled
 
 
 class SaveUpdateScheduleRequest(BaseModel):

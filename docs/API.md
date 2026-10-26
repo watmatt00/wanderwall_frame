@@ -165,8 +165,8 @@ Admin = `require_admin`, Any = `get_current_device`, Contributor = `require_cont
 | **Software updates** | | | |
 | `/api/v1/updates/settings` | GET | Admin | Update schedule, last check result, installed version and branch |
 | `/api/v1/updates/check` | POST | Admin | Check for an update now |
-| `/api/v1/updates/schedule` | POST | Admin | `{auto_check, auto_apply, frequency: daily\|weekly\|monthly, day, check_time: "HH:MM"}` |
-| `/api/v1/updates/apply` | POST | Admin | Apply the update (git pull + `update_app.sh`), then restart the API |
+| `/api/v1/updates/schedule` | POST | Admin | `{auto_check, auto_apply, frequency: daily\|weekly\|monthly, day, check_time: "HH:MM"}`. 403 while demo mode is on (PL-150) |
+| `/api/v1/updates/apply` | POST | Admin | Apply the update (git pull + `update_app.sh`), then restart the API. 403 while demo mode is on (PL-150): `{"detail": "Software updates are turned off on this demo frame. The frame owner applies updates."}` |
 
 ### GET /api/v1/status
 

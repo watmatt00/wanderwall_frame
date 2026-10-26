@@ -93,6 +93,8 @@ Two reusable codes (Manager → admin, Contributor → contributor) so an App St
 
 **Admin phones receive the Koofr app password** (`GET /api/v1/cloud/credentials`), so the review frame must use a dedicated Koofr account with sample photos only.
 
+**Software updates (PL-150):** while demo mode is on, `POST /api/v1/updates/apply` and `/schedule` return 403 with a message the app shows, and scheduled auto-apply is skipped, so a reviewer (admin) can't pull new code onto the frame mid-review. Checking still works. The LAN dashboard can still update.
+
 **Reset between reviews (PL-151):** Reset to Baseline removes demo and Share phones, invites and Koofr upload links, and deletes every `KFR_*` cloud folder not in the baseline. Because it deletes cloud folders, it runs only when the album registry marks the Koofr account `dedicated` and the login is the one the baseline was saved with. LAN-only (dashboard), like the rest of Demo Mode.
 
 **After the review:** turn off demo mode (revokes the reviewer's phones), then rotate the Koofr app password.
