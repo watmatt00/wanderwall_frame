@@ -26,7 +26,7 @@ KF = "10000000aaaa0001"     # kframe
 @pytest.fixture
 def cloud(tmp_path, monkeypatch):
     """A fake Koofr account (remote "kfr"), a temp registry and albums, on board TK."""
-    state = SimpleNamespace(files={}, dirs=["Documents"], board=TK, upload_ok=True)
+    state = SimpleNamespace(files={}, dirs=["Documents"], board=TK, upload_ok=True, user="me@example.com")
 
     async def list_files(remote):
         prefix = remote.rstrip("/") + "/"
@@ -47,11 +47,15 @@ def cloud(tmp_path, monkeypatch):
     async def koofr():
         return "kfr"
 
+    async def koofr_user(remote):
+        return state.user
+
     monkeypatch.setattr(reg, "rclone_list_files", list_files)
     monkeypatch.setattr(reg, "rclone_cat", cat)
     monkeypatch.setattr(reg, "rclone_copyto", copyto)
     monkeypatch.setattr(reg, "rclone_list_dirs", list_dirs)
     monkeypatch.setattr(reg, "_koofr_remote", koofr)
+    monkeypatch.setattr(reg, "_koofr_user", koofr_user)
     monkeypatch.setattr(reg, "board_serial", lambda: state.board)
     monkeypatch.setattr(reg, "get_settings", lambda: SimpleNamespace(frame=SimpleNamespace(name="tkframe")))
     monkeypatch.setattr(reg, "LOCAL_PATH", tmp_path / "frame_albums.yaml")
@@ -300,3 +304,91 @@ def test_routes(cloud):
 def test_routes_are_lan_only(cloud, path):
     r = TestClient(app, client=("8.8.8.8", 50000)).post(path, json={"moved": True, "serial": KF})
     assert r.status_code == 403
+
+
+# --- Koofr account change ------------------------------------------------------------
+
+def _new_account(cloud, user="apple@example.com"):
+    """Point the frame at an empty Koofr account."""
+    cloud.files.clear()
+    cloud.dirs[:] = ["My documents"]
+    cloud.user = user
+
+
+def test_new_account_starts_a_fresh_list(cloud):
+    _add(cloud, "trip")
+    _add(cloud, "kids")
+    _remove(cloud, "trip")
+    assert asyncio.run(reg.push()) is True
+    assert reg.local_doc()["koofr_user"] == "me@example.com"
+
+    _new_account(cloud)
+    _add(cloud, "demo")  # the push from this change is dropped in tests; push below
+    assert asyncio.run(reg.push()) is True
+    doc = reg.local_doc()
+    assert _statuses(doc) == {"KFR_kids": "active", "KFR_demo": "active"}
+    assert doc["koofr_user"] == "apple@example.com"
+    assert doc["account"] == "dedicated"  # decided again: every KFR_* on the new account is this frame's
+    cloud_doc = _cloud_doc(cloud, TK)
+    assert cloud_doc["koofr_user"] == "apple@example.com"
+    assert "KFR_trip" not in _statuses(cloud_doc)
+
+
+def test_old_list_copied_to_the_new_account_is_replaced(cloud):
+    """tkframe 2026-10-26: switched account before koofr_user existed; its old list was pushed to the new account."""
+    reg.LOCAL_PATH.write_text(yaml.safe_dump({
+        "serial": TK, "frame_name": "tkframe", "account": "shared",
+        "albums": [{"folder": "KFR_tkf1", "name": "tkf1", "status": "deleted"},
+                   {"folder": "KFR_heic", "name": "Heic1", "status": "deleted"}],
+    }))
+    _new_account(cloud)
+    _put_frame(cloud, TK, "tkframe", [{"folder": "KFR_tkf1", "name": "tkf1", "status": "deleted"}],
+               account="shared")
+    cloud.dirs.remove("KFR_tkf1")  # _put_frame adds the folder; it's on the old account only
+    _add(cloud, "tester")
+    assert asyncio.run(reg.push()) is True
+    doc = reg.local_doc()
+    assert _statuses(doc) == {"KFR_tester": "active"}
+    assert doc["account"] == "dedicated"
+    assert doc["koofr_user"] == "apple@example.com"
+    assert _statuses(_cloud_doc(cloud, TK)) == {"KFR_tester": "active"}
+
+
+def test_old_list_on_the_same_account_is_kept(cloud):
+    """A frame from before koofr_user (kframe): deleted albums' folders are still there, so keep the list."""
+    reg.LOCAL_PATH.write_text(yaml.safe_dump({
+        "serial": TK, "frame_name": "tkframe", "account": "shared",
+        "albums": [{"folder": "KFR_old", "name": "Old", "status": "deleted"}],
+    }))
+    cloud.dirs.append("KFR_old")
+    _add(cloud, "trip")
+    assert asyncio.run(reg.push()) is True
+    doc = reg.local_doc()
+    assert _statuses(doc) == {"KFR_old": "deleted", "KFR_trip": "active"}
+    assert doc["account"] == "shared"
+    assert doc["koofr_user"] == "me@example.com"
+
+
+def test_unreadable_login_changes_nothing_and_login_is_normalised(cloud):
+    _add(cloud, "trip")
+    _remove(cloud, "trip")
+    assert asyncio.run(reg.push()) is True
+    cloud.user = None  # login unreadable: no change
+    assert asyncio.run(reg.push()) is True
+    doc = reg.local_doc()
+    assert doc["koofr_user"] == "me@example.com"
+    assert _statuses(doc) == {"KFR_trip": "deleted"}
+    assert reg._parse_doc("koofr_user: ' Me@Example.com '")["koofr_user"] == "me@example.com"
+
+
+def test_unlistable_cloud_skips_the_push(cloud, monkeypatch):
+    reg.LOCAL_PATH.write_text(yaml.safe_dump({
+        "serial": TK, "albums": [{"folder": "KFR_old", "name": "Old", "status": "deleted"}],
+    }))
+
+    async def no_dirs(remote):
+        return None
+
+    monkeypatch.setattr(reg, "rclone_list_dirs", no_dirs)
+    assert asyncio.run(reg.push()) is False
+    assert _statuses(reg.local_doc()) == {"KFR_old": "deleted"}

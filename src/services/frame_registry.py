@@ -20,9 +20,14 @@ Rules:
 - The account is marked `dedicated` only when the frame first claims it and
   every KFR_* folder there is its own; otherwise `shared`. A dedicated
   account counts as shared again as soon as another frame's file appears.
+- The list belongs to one Koofr account (`koofr_user`). When the frame is
+  moved to another account (Save & Verify with a new login), the next push
+  starts a fresh list with only the albums on the frame and decides the
+  account again; the old account's history stays in its own cloud file.
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -56,7 +61,7 @@ SERIAL_SOURCES = (
 RECENT = timedelta(hours=24)
 # last_seen is refreshed after a sync once this much time has passed
 HEARTBEAT = timedelta(hours=20)
-CLOUD_FIELDS = ("version", "serial", "frame_name", "account", "last_seen",
+CLOUD_FIELDS = ("version", "serial", "frame_name", "account", "koofr_user", "last_seen",
                 "replaced_by", "replaced_at", "taken_over", "albums")
 
 _loop: Optional[asyncio.AbstractEventLoop] = None
@@ -164,6 +169,7 @@ def _parse_doc(text: str) -> Optional[dict[str, Any]]:
         "serial": _clean_serial(data.get("serial")),
         "frame_name": str(data.get("frame_name") or "")[:50],
         "account": data.get("account") if data.get("account") in ("shared", "dedicated") else None,
+        "koofr_user": str(data.get("koofr_user") or "").strip().lower()[:254] or None,
         "last_seen": str(data["last_seen"]) if data.get("last_seen") else None,
         "replaced_by": _clean_serial(data.get("replaced_by")),
         "replaced_at": str(data["replaced_at"]) if data.get("replaced_at") else None,
@@ -259,6 +265,12 @@ def _reconcile(doc: dict[str, Any], current: list[PhotoSource]) -> bool:
             entry["deleted_at"] = _now()
     doc["frame_name"] = get_settings().frame.name
     return (repr(doc["albums"]), doc["frame_name"]) != before
+
+
+def _reset_for_account(doc: dict[str, Any]) -> None:
+    """Start a fresh list for a new Koofr account; _reconcile adds the albums on the frame."""
+    doc.update(account=None, albums=[], taken_over=[], pending_replace=[],
+               replaced_by=None, replaced_at=None, last_seen=None, last_pushed=None)
 
 
 def _merge_albums(doc: dict[str, Any], albums: list[dict[str, Any]]) -> int:
@@ -362,6 +374,46 @@ async def _koofr_remote() -> Optional[str]:
         return None
 
 
+async def _koofr_user(remote: str) -> Optional[str]:
+    """The Koofr login (email, lowercase) the rclone remote uses, or None if it can't be read."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "rclone", "config", "dump",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        except asyncio.TimeoutError:
+            proc.kill()
+            logger.error("rclone config dump timed out")
+            return None
+        user = json.loads(stdout.decode() or "{}").get(remote, {}).get("user", "")
+    except (OSError, ValueError, AttributeError) as e:
+        logger.error(f"Couldn't read the Koofr login from the rclone config: {e}")
+        return None
+    return str(user).strip().lower() or None
+
+
+async def _from_other_account(remote: str, doc: dict[str, Any]) -> Optional[bool]:
+    """
+    For a list from before koofr_user was recorded: True if it came from another account.
+
+    Delete Album keeps the cloud folder, so when none of the deleted albums'
+    folders are on this account, the list was made on another one.
+
+    Returns:
+        True/False, or None if the cloud couldn't be listed
+    """
+    deleted = {a["folder"] for a in doc["albums"] if a["status"] == "deleted"}
+    if not deleted:
+        return False
+    dirs = await rclone_list_dirs(f"{remote}:")
+    if dirs is None:
+        return None
+    return not deleted & set(dirs)
+
+
 def _cloud_path(remote: str, serial: str) -> str:
     """A frame's registry file in the cloud."""
     return f"{remote}:{CLOUD_DIR}/{serial}.yaml"
@@ -433,6 +485,7 @@ async def push(clear_replaced: bool = False) -> bool:
 
     Entries only in the cloud copy are merged in (reinstall); replaced_by comes
     from the cloud (another frame sets it) unless `clear_replaced` (Undo).
+    If the Koofr login changed, the list starts again for the new account.
 
     Returns:
         True if the cloud file was written
@@ -449,10 +502,25 @@ async def push(clear_replaced: bool = False) -> bool:
             return False
         own = frames.pop(doc["serial"], None)
 
+        user = await _koofr_user(remote)
+        switched = False
+        if user and doc["koofr_user"] != user:
+            switched = bool(doc["koofr_user"]) or await _from_other_account(remote, doc)
+            if switched is None:
+                return False
+
         with _lock():
             doc = _load_or_init()
             if doc["pending_swap"]:
                 return False
+            if switched:
+                logger.info(f"Koofr account changed to {user}: starting a new album list for it")
+                _reset_for_account(doc)
+                # A cloud file on the new account written from the old list isn't this account's history
+                if own and own["koofr_user"] != user:
+                    own = None
+            if user:
+                doc["koofr_user"] = user
             if own:
                 _merge_albums(doc, own["albums"])
                 doc["account"] = doc["account"] or own["account"]
