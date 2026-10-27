@@ -24,6 +24,7 @@ Cloud (Koofr) ──────────────────────
 | **tkframe** | 192.168.102.210 | 100.100.168.66 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `dev` | Test frame — tracks dev branch |
 | **kframe** | 192.168.102.200 | 100.69.17.26 | `http://kframe.whale-ayu.ts.net:8000` | pi | `main` | Home frame (production) |
 | **mnbframe** | 192.168.1.154 | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
+| **bfframe** | 192.168.102.215 (home, until shipped) | — | `http://bfframe.whale-ayu.ts.net:8000` | pi | `main` | Pi 5, being built for Burke and Fafa, then remote (production). `docs/BUILD_bfframe.md` |
 | **fuckms** | 192.168.102.100 | 100.82.140.119 | — | matt | — | Main PC (dev) |
 
 Dashboard URLs require Tailscale connected (MagicDNS on tailnet `whale-ayu.ts.net`). LAN IPs also work directly on port 8000.
