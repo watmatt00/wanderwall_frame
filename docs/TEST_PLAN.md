@@ -26,8 +26,8 @@ This document is a **master template**. For each test run:
    Run Date: 2026-02-15
    Tester: Matt
    Pi Target: tkframe (192.168.102.210:8000)
-   App Build: Xcode 16, iPhone 14 Pro Simulator
-   Notes: Pre-TestFlight validation
+   App Build: TestFlight 1.0 (458), iPhone 15, iOS 26.x
+   Notes: RB-10 release check (3.28)
    ```
 
 4. **Execute tests** - Check boxes as you go:
@@ -639,6 +639,58 @@ _Removed: `AddDestinationView.swift` no longer exists. Albums are created on the
 - [ ] Row QR button shows the QR sheet; trash revokes a pending invite
 - [ ] Share Upload Link (MM1 for the album showing, or SD3 for that album): Generate → link and password; Share Link opens the share sheet; Revoke Link → confirm → link stops working
 - [ ] Album without a cloud folder → "This album has no cloud folder, so it can't accept uploads."
+
+---
+
+### 3.28 iOS - Release Check on a Physical iPhone (RB-10)
+
+**When:** on the exact TestFlight build that will be submitted to App Review (built by CodeMagic from `main`, D-07). Run 3.2, 3.8–3.14, 3.16, 3.27 and 4.1 on the same build, then this section. Write the build number in the run header ("App Build: TestFlight 1.0 (458), iPhone 15, iOS 26.x").
+
+#### Build and install
+
+- [ ] TestFlight shows the build number that was uploaded, and it's tagged `v1.0.<build>` on `main`
+- [ ] Installs as an update over the previous TestFlight build; paired frames and cloud credentials are still there
+- [ ] Home-screen name is "WanderWall"; the icon has no black or transparent edges
+
+#### Permission prompts (real phone only; the simulator doesn't show them)
+
+- [ ] First frame contact on the home WiFi → Local Network prompt with "WanderWall connects to your picture frame on your home network to pair and manage it." Allow → pairing works (PL-012)
+- [ ] Don't Allow on a fresh install → pairing with the LAN address fails with a clear message; the Funnel `https://` address still works
+- [ ] Scan QR Code → Camera prompt with "Camera is used to scan the WanderWall pairing QR code". Allow → the dashboard QR scans (PL-136)
+- [ ] Camera denied → the scanner explains it and manual entry still works
+- [ ] Select Photos opens the photo picker with no permission prompt (the system picker needs none)
+
+#### iOS 26 look (PL-153)
+
+Walk every screen in `docs/SCREEN_MAP.md` in both light and dark mode:
+- [ ] Toolbars and the Liquid Glass bars: no titles or buttons cut off or overlapping
+- [ ] Sheets (Upload Photos, Share Upload Link, Invite to App, Paired Devices) open, scroll and close
+- [ ] Segmented pickers (album picker, log type) readable
+- [ ] Alerts and confirmations show their message and both buttons (PL-130)
+- [ ] Largest Dynamic Type size (Settings → Accessibility → Display & Text Size → Larger Text): Main Menu and Album Detail still usable
+
+#### What App Review will do (demo frame tkframe, from cellular with WiFi off)
+
+- [ ] Pair with the Manager demo code from the review notes (RB-18), manual entry, using the Funnel URL
+- [ ] Pair by scanning the review-notes QR image (RB-25)
+- [ ] Upload Photos, Albums (create one, Show on Frame), Manage Photos, Share Upload Link, Manage Frame (rename, rotation, restart) all work on cellular
+- [ ] Software Update on the demo frame shows the locked message, not an update (PL-150)
+- [ ] Opening the Funnel URL in Safari shows the short WanderWall page, not raw JSON (PL-128)
+- [ ] Every album on the demo frame has photos; no "Finish Setup" image on the frame (PL-063)
+
+#### App Store rules
+
+- [ ] About has working Support (`https://picframe.txphipps.com/support/`) and Privacy Policy (`https://picframe.txphipps.com/privacy/`) links (PL-115, guideline 5.1.1(i))
+- [ ] No "PicFrame", "Koofr", "beta" or "test" anywhere the user can see (PL-160, PL-100)
+- [ ] No placeholder text, no empty screens, no dead buttons
+- [ ] Settings → Clear All Data → back to Welcome with nothing paired (account-deletion rule 5.1.1(v), review notes)
+- [ ] Rotate the phone: the app stays usable (or stays portrait)
+- [ ] Turn on Airplane mode mid-upload → an error message, no crash; turn it off and the frame comes back
+
+#### Multiple frames (PL-176, PL-023)
+
+- [ ] Pair two frames → both listed; switch between them; each shows its own albums and status
+- [ ] Install WanderWall Share too → the Manager still has both frames
 
 ---
 
