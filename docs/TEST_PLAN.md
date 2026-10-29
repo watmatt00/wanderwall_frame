@@ -298,7 +298,7 @@ _(Covered in section 3.2 above - Dashboard: Generate Pairing Code)_
 - [ ] Cloud Storage card shows free / used / total
 - [ ] "Your Frames" card shows up to 3 paired frames: name, online dot, album, sync status, counts
 - [ ] Menu buttons: Upload Photos, Albums (subtitle = album showing), Share Upload Link (admin), About
-- [ ] Toolbar: "+" → Frames list, gear → Settings
+- [ ] Toolbar: gear → Settings only (the "+" to the Frames list is off for the first App Review, PL-179)
 - [ ] Tapping Your Frames: one frame → Frame Detail; several → Frames list
 - [ ] Revoked on the frame → RepairBanner with Re-pair / Remove
 
