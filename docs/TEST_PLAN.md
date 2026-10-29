@@ -680,7 +680,7 @@ Walk every screen in `docs/SCREEN_MAP.md` in both light and dark mode:
 
 #### App Store rules
 
-- [ ] About has working Support (`https://picframe.txphipps.com/support/`) and Privacy Policy (`https://picframe.txphipps.com/privacy/`) links (PL-115, guideline 5.1.1(i))
+- [ ] About has working Support (`https://wanderwall.txphipps.com/support/`) and Privacy Policy (`https://wanderwall.txphipps.com/privacy/`) links (PL-115, guideline 5.1.1(i))
 - [ ] No "PicFrame", "Koofr", "beta" or "test" anywhere the user can see (PL-160, PL-100)
 - [ ] No placeholder text, no empty screens, no dead buttons
 - [ ] Settings → Clear All Data → back to Welcome with nothing paired (account-deletion rule 5.1.1(v), review notes)
