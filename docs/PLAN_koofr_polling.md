@@ -5,7 +5,8 @@ Written 2026-11-03. Status: **planned, not started.** Two parts:
 - **Part A:** cache the cloud photo count so status requests stop starting `rclone size`.
 - **Part B:** a safe way to upgrade the picframe display engine on production frames. The old engine retries refused Nominatim lookups forever.
 
-Parking lot items still to be added (PL-180 is next free).
+**Tracker:** http://utility.home/trackers/koofr-polling/ (items KP-001…, file `wanderwall_app/docs/TRACKER_koofr_polling.md`
+on `dev`). Kept off the parking lot while `main` is frozen for Apple review; copy into it afterwards (KP-032).
 
 ## Why: what the Pi-hole audit found
 
@@ -161,7 +162,7 @@ All four frames have the same config: `load_geoloc: false`, `geo_key: this_needs
 | 1 | `pf_pi_sim` | Part B tests (bookworm, 3.11) | — |
 | 2 | tkframe | Parts A and B on `dev`, tests above | — |
 | 3 | bfframe | Expected: engine does nothing (already 2026.4.22); Part A arrives with promotion | promotion |
-| 4 | — | Tag `v5.0.X`, merge `dev` → `main` | **Matt's explicit OK** |
+| 4 | — | Tag `v5.0.X`, merge `dev` → `main`; not before the Apple review is done (`main` frozen) | **Matt's explicit OK** |
 | 5 | kframe | First real bookworm engine upgrade; at home, so a screen and keyboard are at hand if needed. Monthly auto-update (Dec 2, 03:30) or Update button | **Matt's OK** for any manual update |
 | 6 | mnbframe | **Two steps** (Matt, 2026-11-03), see below | **Matt's OK** for each step |
 
@@ -176,4 +177,4 @@ No changes go to v4 (`~/picframe_4.0`); mnbframe gets both fixes through the rei
 
 - The lights' behaviour when `sync_status` is `"unknown"` (Part A, step 6).
 - Whether to add `remote_count_checked_at` and pause background-tab polling (Part A, steps 7–8).
-- Parking lot items (PL-180 onward).
+- Parking lot items, once `main` is back to normal (KP-032).
