@@ -11,6 +11,8 @@ Provides:
 - rclone_purge: Delete a cloud folder
 - rclone_list_dirs: List the top-level folders of a remote
 - rclone_count: Count files on remote
+- rclone_try_count: Count files on remote, None on failure (used by the cloud count cache)
+- add_cloud_change_listener: Be told when a helper changes the cloud
 - rclone_check: Check if remote is accessible
 - rclone_list_remotes: List configured remotes
 - count_local_files: Count files in local directory
@@ -18,16 +20,38 @@ Provides:
 """
 
 import asyncio
+import json
 import logging
 import re
 import shutil
 from enum import Enum
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+# Called with the remote path after every command that may have changed the cloud (upload, delete,
+# rename, sync up, purge). The cloud count cache registers here (src/services/cloud_count_cache.py);
+# a callback, not an import, so this module doesn't depend on the services layer.
+_cloud_change_listeners: list[Callable[[str], None]] = []
+
+
+def add_cloud_change_listener(listener: Callable[[str], None]) -> None:
+    """Register a function to call with the remote path whenever a helper changes the cloud."""
+    if listener not in _cloud_change_listeners:
+        _cloud_change_listeners.append(listener)
+
+
+def _notify_cloud_change(remote_path: str) -> None:
+    """Tell the listeners that `remote_path` may have changed; a failing listener is logged, never raised."""
+    for listener in list(_cloud_change_listeners):
+        try:
+            listener(remote_path)
+        except Exception as e:  # noqa: BLE001 - a listener must never break a cloud operation
+            logger.warning(f"Cloud change listener failed for {remote_path}: {e}")
 
 
 class SyncStatus(str, Enum):
@@ -138,6 +162,7 @@ async def rclone_deletefile(rclone_remote: str, filename: str) -> RcloneResult:
         stderr=asyncio.subprocess.STDOUT,
     )
     stdout, _ = await proc.communicate()
+    _notify_cloud_change(rclone_remote)
     output = stdout.decode()
     if proc.returncode == 0:
         return RcloneResult(success=True, files_deleted=1, output=output)
@@ -161,6 +186,7 @@ async def rclone_movefile(rclone_remote: str, old_filename: str, new_filename: s
         stderr=asyncio.subprocess.STDOUT,
     )
     stdout, _ = await proc.communicate()
+    _notify_cloud_change(rclone_remote)
     output = stdout.decode()
     if proc.returncode == 0:
         return RcloneResult(success=True, output=output)
@@ -209,6 +235,7 @@ async def rclone_deletefile_raw(rclone_remote: str, filename: str) -> RcloneResu
         stderr=asyncio.subprocess.STDOUT,
     )
     stdout, _ = await proc.communicate()
+    _notify_cloud_change(rclone_remote)
     output = stdout.decode()
     if proc.returncode == 0:
         return RcloneResult(success=True, files_deleted=1, output=output)
@@ -239,6 +266,7 @@ async def rclone_movefile_raw(rclone_remote: str, old_filename: str, new_filenam
         stderr=asyncio.subprocess.STDOUT,
     )
     stdout, _ = await proc.communicate()
+    _notify_cloud_change(rclone_remote)
     output = stdout.decode()
     if proc.returncode == 0:
         return RcloneResult(success=True, output=output)
@@ -261,6 +289,7 @@ async def rclone_copyto(local_file: Path, remote_dest: str) -> RcloneResult:
             stderr=asyncio.subprocess.STDOUT,
         )
         stdout, _ = await proc.communicate()
+        _notify_cloud_change(remote_dest)
         output = stdout.decode()
         if proc.returncode == 0:
             return RcloneResult(success=True, files_transferred=1, output=output)
@@ -294,6 +323,7 @@ async def rclone_copy_dir(local_dir: Path, remote_dest: str) -> RcloneResult:
             stderr=asyncio.subprocess.STDOUT,
         )
         stdout, _ = await proc.communicate()
+        _notify_cloud_change(remote_dest)
         output = stdout.decode()
         if proc.returncode == 0:
             return RcloneResult(success=True, files_transferred=_parse_transferred(output), output=output)
@@ -343,14 +373,18 @@ async def rclone_sync_up(local_dir: Path, remote_dest: str) -> RcloneResult:
         return RcloneResult(success=False, error=f"Invalid local folder: {local_dir}")
     if not _is_remote_subfolder(remote_dest):
         return RcloneResult(success=False, error=f"Invalid remote folder: {remote_dest}")
-    return await _run_rclone(["rclone", "sync", str(local_dir), remote_dest, "--stats-one-line", "-v"], "sync")
+    result = await _run_rclone(["rclone", "sync", str(local_dir), remote_dest, "--stats-one-line", "-v"], "sync")
+    _notify_cloud_change(remote_dest)
+    return result
 
 
 async def rclone_purge(remote_folder: str) -> RcloneResult:
     """Delete a remote folder and everything in it (rclone purge). Never the root of the account."""
     if not _is_remote_subfolder(remote_folder):
         return RcloneResult(success=False, error=f"Invalid remote folder: {remote_folder}")
-    return await _run_rclone(["rclone", "purge", remote_folder], "purge")
+    result = await _run_rclone(["rclone", "purge", remote_folder], "purge")
+    _notify_cloud_change(remote_folder)
+    return result
 
 
 async def rclone_list_dirs(remote: str) -> list[str] | None:
@@ -470,6 +504,43 @@ async def rclone_count(remote: str) -> int:
     except Exception as e:
         logger.error(f"Failed to count remote files: {e}")
         return 0
+
+
+async def rclone_try_count(remote: str) -> Optional[int]:
+    """
+    Count files in a remote, telling a failure apart from an empty folder.
+
+    Unlike rclone_count() (0 on any failure, kept for its existing callers), this returns None when
+    the remote is invalid, rclone fails or its output can't be read, so a cache never stores a wrong 0.
+
+    Args:
+        remote: Remote path to count (e.g. "koofr:KFR_frame")
+
+    Returns:
+        Number of files, or None on failure
+    """
+    if not _validate_remote(remote):
+        logger.error(f"Refusing to count invalid remote: {remote}")
+        return None
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "rclone", "size", remote, "--json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+    except (OSError, ValueError) as e:
+        logger.error(f"Failed to run rclone size for {remote}: {e}")
+        return None
+    if proc.returncode != 0:
+        logger.warning(f"rclone size {remote} exited {proc.returncode}: {stderr.decode().strip()[:200]}")
+        return None
+    try:
+        count = json.loads(stdout.decode()).get("count")
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"rclone size {remote}: unreadable output: {e}")
+        return None
+    return count if isinstance(count, int) else None
 
 
 async def rclone_list_md5(remote: str) -> list[tuple[str, int, str]] | None:

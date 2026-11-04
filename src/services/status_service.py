@@ -6,7 +6,6 @@ Consolidates source resolution, photo counting, sync status,
 and disk capacity calculations.
 """
 
-import asyncio
 import logging
 import shutil
 from pathlib import Path
@@ -15,7 +14,8 @@ from typing import Optional
 from src.config.settings import get_settings
 from src.services.source_manager import source_manager, PhotoSource
 from src.services.sync_service import sync_service
-from src.utils.rclone import count_local_files, rclone_count
+from src.services.cloud_count_cache import cloud_count_cache
+from src.utils.rclone import count_local_files
 
 logger = logging.getLogger(__name__)
 
@@ -37,45 +37,49 @@ def get_current_source() -> tuple[str, Optional[PhotoSource]]:
     return current_source_id, current_source
 
 
-async def get_photo_counts(source: Optional[PhotoSource]) -> tuple[int, int]:
+async def get_photo_counts(source: Optional[PhotoSource]) -> tuple[int, Optional[int]]:
     """
-    Get local and remote photo counts for a source.
+    Get local and cloud photo counts for a source.
+
+    The cloud count comes from the cloud count cache (src/services/cloud_count_cache.py), which
+    runs rclone only after syncs, manual cloud changes and album switches, never on every poll.
 
     Args:
         source: The photo source to count, or None
 
     Returns:
-        Tuple of (local_count, remote_count)
+        Tuple of (local_count, remote_count). remote_count is None when the album has no cloud
+        count yet (e.g. sync interval 0 before any manual action); responses send it as 0.
     """
     if not source:
         return 0, 0
 
     local_count = count_local_files(source.local_path)
 
-    remote_count = 0
-    if source.rclone_remote:
-        try:
-            remote_count = await asyncio.wait_for(
-                rclone_count(source.rclone_remote),
-                timeout=15,
-            )
-        except (asyncio.TimeoutError, Exception):
-            pass
+    if not source.rclone_remote:
+        return local_count, 0
+    try:
+        remote_count = await cloud_count_cache.count_for_status(source.rclone_remote)
+    except (OSError, ValueError, RuntimeError) as e:
+        logger.warning(f"Cloud count cache failed for {source.rclone_remote}: {e}")
+        remote_count = cloud_count_cache.get(source.rclone_remote)
 
     return local_count, remote_count
 
 
-def determine_sync_status(local_count: int, remote_count: int) -> str:
+def determine_sync_status(local_count: int, remote_count: Optional[int]) -> str:
     """
     Determine sync status from counts and sync service state.
 
     Returns:
-        Status string: "syncing", "error", "match", "mismatch", or "idle"
+        Status string: "syncing", "error", "match", "mismatch", "unknown" (no cloud count yet) or "idle"
     """
     if sync_service._is_syncing:
         return "syncing"
     if sync_service._last_sync and not sync_service._last_sync.success:
         return "error"
+    if remote_count is None:
+        return "unknown"
     if local_count == remote_count and remote_count > 0:
         return "match"
     if remote_count > 0 and local_count != remote_count:

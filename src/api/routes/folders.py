@@ -25,7 +25,8 @@ from src.config.settings import get_settings
 from src.services import album_service
 from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
-from src.utils.rclone import count_local_files, get_sync_status, rclone_list_remotes
+from src.services.cloud_count_cache import cloud_count_cache
+from src.utils.rclone import SyncStatus, count_local_files, get_sync_status, rclone_list_remotes
 
 
 router = APIRouter(prefix="/folders", tags=["folders"])
@@ -268,6 +269,9 @@ async def get_folder_sync_status(source_id: str, admin=Depends(require_admin)):
 
     if source.rclone_remote:
         status_result = await get_sync_status(source.rclone_remote, source.local_path)
+        if status_result.status != SyncStatus.ERROR:
+            # A live count the app asked for: keep it for status requests too
+            cloud_count_cache.store(source.rclone_remote, status_result.remote_count)
         remote_count = status_result.remote_count
         local_count = status_result.local_count
         sync_status_str = status_result.status.value

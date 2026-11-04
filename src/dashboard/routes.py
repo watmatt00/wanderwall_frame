@@ -53,7 +53,8 @@ from src.services.status_service import (
 from src.storage.devices import device_storage
 from src.auth.pairing import generate_pairing_code
 from src.utils.qr_generator import generate_qr_data_url
-from src.utils.rclone import count_local_files, rclone_count, rclone_list_remotes, _validate_filename_raw
+from src.services.cloud_count_cache import cloud_count_cache
+from src.utils.rclone import count_local_files, rclone_list_remotes, rclone_try_count, _validate_filename_raw
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
@@ -615,7 +616,7 @@ async def get_dashboard_status():
     # Get current source info (shared logic)
     current_source_id, current_source = get_current_source()
 
-    # Count photos (shared logic - uses rclone_count instead of manual subprocess)
+    # Count photos (shared logic; the cloud count comes from the cloud count cache, not a live rclone call)
     local_count, remote_count = await get_photo_counts(current_source)
 
     # Determine sync status (shared logic)
@@ -657,7 +658,7 @@ async def get_dashboard_status():
     return {
         "sync_status": _light_overrides.get("sync_status", sync_status),
         "local_count": local_count,
-        "remote_count": remote_count,
+        "remote_count": remote_count if remote_count is not None else 0,
         "current_source": current_source.name if current_source else "Unknown",
         "services": services_data,
         "storage_used": capacity["used_gb"],
@@ -963,10 +964,16 @@ async def list_sources_api():
         local = count_local_files(source.local_path)
         remote = 0
         if source.rclone_remote:
+            # Opening the Albums tab is a manual action: count live and keep the result for status
             try:
-                remote = await asyncio.wait_for(rclone_count(source.rclone_remote), timeout=10)
-            except (asyncio.TimeoutError, Exception):
-                remote = -1
+                counted = await asyncio.wait_for(rclone_try_count(source.rclone_remote), timeout=10)
+            except asyncio.TimeoutError:
+                counted = None
+            if counted is None:
+                remote = -1  # the page shows "?"
+            else:
+                remote = counted
+                cloud_count_cache.store(source.rclone_remote, counted)
         return local, remote
 
     counts = await asyncio.gather(*[_get_counts(s) for s in sources])

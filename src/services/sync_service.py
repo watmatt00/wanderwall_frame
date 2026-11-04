@@ -13,6 +13,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from src.services import frame_registry
+from src.services.cloud_count_cache import cloud_count_cache
 from src.utils.rclone import rclone_sync, rclone_count
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,9 @@ class SyncService:
                     f"Sync complete for '{source_id}': "
                     f"{sync_result.files_transferred} transferred"
                 )
+                # The only automatic cloud count: once per sync, so it follows the running sync
+                # timer (none at interval 0 or in party mode). Status requests read this value.
+                await cloud_count_cache.refresh(rclone_remote)
             else:
                 logger.error(f"Sync failed for '{source_id}': {sync_result.error}")
 

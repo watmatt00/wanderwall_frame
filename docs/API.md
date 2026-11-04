@@ -187,7 +187,7 @@ Admin = `require_admin`, Any = `get_current_device`, Contributor = `require_cont
 }
 ```
 
-`sync.status`: `match`, `mismatch`, `syncing`, `error` or `idle`. `network` drives the app's Connection lights. `local_connected`: the frame has a LAN connection (same test as the frame's WiFi dot). `wifi_ssid`: "" when wired or unknown. `remote_access`: the frame answers on its Funnel URL from the public internet (checked through Tailscale's relay, cached 5 min when OK, 1 min when failing); `null` when no Funnel URL is set. The last three are missing on frames older than 5.0.0.
+`sync.status`: `match`, `mismatch`, `syncing`, `error`, `idle`, or (since the cloud count cache, `dev` 2026-11-04) `unknown` when the album has no cloud count yet; `sync.remote_count` is then 0, never null. The cloud count is cached: refreshed after each sync, after manual cloud changes and on album switches, not on every request (`src/services/cloud_count_cache.py`). `network` drives the app's Connection lights. `local_connected`: the frame has a LAN connection (same test as the frame's WiFi dot). `wifi_ssid`: "" when wired or unknown. `remote_access`: the frame answers on its Funnel URL from the public internet (checked through Tailscale's relay, cached 5 min when OK, 1 min when failing); `null` when no Funnel URL is set. The last three are missing on frames older than 5.0.0.
 
 ### POST /api/v1/system/reboot
 
@@ -358,8 +358,8 @@ Polled by the page. Fields:
 
 | Field | Meaning |
 |---|---|
-| `sync_status` | `idle`, `syncing`, `match`, `mismatch` or `error` |
-| `local_count`, `remote_count` | Photos on the frame / in the cloud for the album showing |
+| `sync_status` | `idle`, `syncing`, `match`, `mismatch`, `error`, or `unknown` (no cloud count yet) |
+| `local_count`, `remote_count` | Photos on the frame / in the cloud for the album showing; `remote_count` comes from the cloud count cache (0 when `unknown`) |
 | `current_source` | Name of the album showing |
 | `services` | `[{name, active, status}]` |
 | `storage_used`, `storage_total`, `storage_percent` | SD card use (GB, %) |

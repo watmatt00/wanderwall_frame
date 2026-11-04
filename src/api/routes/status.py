@@ -178,7 +178,8 @@ async def get_status(admin=Depends(require_admin)):
             last_sync=get_last_sync_time(),
             status=sync_status,
             local_count=photo_count,
-            remote_count=remote_count,
+            # Always a number: the app decodes remote_count as a required Int (FrameStatus.swift)
+            remote_count=remote_count if remote_count is not None else 0,
             is_syncing=sync_service._is_syncing,
             current_source=sync_service._current_source,
         ),

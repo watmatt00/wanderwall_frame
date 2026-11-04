@@ -451,8 +451,10 @@ function initStatusDashboard() {
             const localCount = data.local_count || 0;
             const countsMatch = cloudCount === localCount;
 
+            // "unknown": no cloud count yet (sync off and nothing done by hand since); not a mismatch
             const severity = syncStatus === "syncing" ? "SYNCING" :
                             syncStatus === "error" ? "ERROR" :
+                            syncStatus === "unknown" ? "UNKNOWN" :
                             !countsMatch ? "WARN" :
                             syncStatus === "match" ? "OK" :
                             syncStatus === "idle" ? "OK" : "UNKNOWN";
@@ -460,6 +462,7 @@ function initStatusDashboard() {
             if (overallTitle) {
                 overallTitle.textContent = syncStatus === "syncing" ? "Syncing photos..." :
                                            syncStatus === "error" ? "Sync error" :
+                                           syncStatus === "unknown" ? "Cloud count not checked yet (Sync Now checks it)" :
                                            !countsMatch ? `Out of sync (${cloudCount} cloud / ${localCount} local)` :
                                            syncStatus === "match" ? "Photos in sync" :
                                            syncStatus === "idle" ? "Photos in sync" : "Checking status...";
