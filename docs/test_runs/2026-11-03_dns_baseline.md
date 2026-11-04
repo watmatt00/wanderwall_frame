@@ -49,7 +49,17 @@ Almost all answered from cache; upstream (Quad9) barely touched.
 | tkframe | 13 in 60 s (12:58–12:59), all from `wanderwall-api` (PID 859) | none | 2026.4.22 | 32/122 photos with GPS |
 | kframe | not counted (Pi-hole rate matches tkframe) | ~1,200/day, all HTTP 403 | 2024.11.1 | 753/7,613 photos with GPS, 0 locations cached |
 | mnbframe | 6 in 60 s (~14:30), v4 code | 79 HTTP 403 in 24 h | 2024.9.24 | Remote network, not on our Pi-holes. 9/1,302 photos with GPS |
-| bfframe | not counted | none | 2026.4.22 | 2/3 photos with GPS |
+| bfframe | 0 in 60 s (2026-11-04 09:03) | none | 2026.4.22 | 2/3 photos with GPS; no active album (see below) |
+
+### bfframe (192.168.102.215), added 2026-11-04 09:03 MST
+
+bfframe is the `dev` test frame during the Apple review (tkframe is the review demo frame on `main`), so Part A's
+live check runs there. 24 h to 2026-11-04 09:03: **200 rows on pihole1, 184 on pihole2, all `app.koofr.net`**
+(first seen 2026-10-27 13:45). That's about one lookup pair per 15-min sync and no status polling, because its
+`current_source: default` matches no album (its only album is `frame`, `koofr:KFR_frame`). `/dashboard/status`
+returns `current_source: Unknown`, `sync_status: idle`, and never runs `rclone size`, although the lights run.
+**Not a valid "before" reading:** make `frame` the active album first (KP-019), then take a 1 h reading for .215
+with the same queries (client `192.168.102.215`).
 
 Sources: indicator lights poll `/dashboard/status` every 10 s (`scripts/indicator_lights.py:25`), each poll runs
 `rclone size`; open dashboard tabs add one every 15 s (`dashboard.js:727`), also in background tabs.

@@ -21,10 +21,10 @@ Cloud (Koofr) ──────────────────────
 
 | Device | IP (LAN) | IP (VPN) | Dashboard URL | User | Branch | Notes |
 |--------|----------|----------|---------------|------|--------|-------|
-| **tkframe** | 192.168.102.210 | 100.100.168.66 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `dev` | Test frame — tracks dev branch |
+| **tkframe** | 192.168.102.210 | 100.100.168.66 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `main` | **Apple review demo frame** since 2026-10-26 (RB-07; v5.0.330, demo mode on). Don't move, update or test on it until the app is approved; then it goes back to being the `dev` test frame |
 | **kframe** | 192.168.102.200 | 100.69.17.26 | `http://kframe.whale-ayu.ts.net:8000` | pi | `main` | Home frame (production) |
 | **mnbframe** | 192.168.1.154 | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
-| **bfframe** | 192.168.102.215 (home, until shipped) | — | `http://bfframe.whale-ayu.ts.net:8000` | pi | `main` | Pi 5, being built for Burke and Fafa, then remote (production). `docs/BUILD_bfframe.md` |
+| **bfframe** | 192.168.102.215 (home, until shipped) | — | `http://bfframe.whale-ayu.ts.net:8000` | pi | `dev` | Pi 5, being built for Burke and Fafa, then remote (production). **`dev` test frame during the Apple review** (Matt, 2026-11-04); back to `main` before it ships. `docs/BUILD_bfframe.md` |
 | **fuckms** | 192.168.102.100 | 100.82.140.119 | — | matt | — | Main PC (dev) |
 
 Dashboard URLs require Tailscale connected (MagicDNS on tailnet `whale-ayu.ts.net`). LAN IPs also work directly on port 8000.
@@ -55,17 +55,18 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 ## Deployment Workflow
 
 ### Branch Policy
-- `dev` — all active development. tkframe tracks this.
-- `main` — production. kframe and mnbframe track this. **Only receives tagged merges from `dev`.**
+- `dev` — all active development. The `dev` test frame tracks this: **bfframe** during the Apple review, normally tkframe.
+- `main` — production. kframe, mnbframe and (during the review) tkframe, the demo frame, track this. **Only receives tagged merges from `dev`.**
 - Tag format: `v4.0.X` where X matches the commit count shown in the dashboard (e.g. `v4.0.52`).
 - The dashboard Updates card shows each frame's active branch (DEV/MAIN badge).
 
-### Dev Branch (daily work → tkframe)
+### Dev Branch (daily work → the `dev` test frame)
+During the Apple review the `dev` test frame is **bfframe** (192.168.102.215); afterwards tkframe (192.168.102.210) again.
 1. Work on `dev` branch on PC
 2. `git add && git commit && git push origin dev`
-3. Pull on tkframe: `ssh pi@192.168.102.210 "cd ~/wanderwall_frame && git pull"`
-4. Restart API: `ssh pi@192.168.102.210 "systemctl --user restart wanderwall-api"`
-5. Test dashboard: `http://192.168.102.210:8000`
+3. Update the test frame: Update button in its dashboard (git pull + `update_app.sh`), or Matt runs `ssh pi@192.168.102.215 "cd ~/wanderwall_frame && git pull && bash scripts/update_app.sh"`
+4. Restart API: `ssh pi@192.168.102.215 "systemctl --user restart wanderwall-api"`
+5. Test dashboard: `http://192.168.102.215:8000`
 
 ### Promoting dev → main (kframe, mnbframe)
 1. Tag the commit: `git tag v4.0.X && git push origin v4.0.X`
@@ -76,11 +77,12 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 4. Restart API on prod frames as needed
 5. `git checkout dev` to return to dev work
 
-### One-Time Branch Setup (tkframe)
+### Moving a frame between branches
 ```bash
-ssh pi@192.168.102.210 "cd ~/wanderwall_frame && git fetch origin && git checkout dev"
+ssh pi@<frame> "bash ~/wanderwall_frame/scripts/update_app.sh --branch=dev"   # or --branch=main
 ```
-kframe and mnbframe are already on `main` — no action needed.
+Matt runs it (Pi frames are read-only for Claude). bfframe moved to `dev` for the Apple review (2026-11-04) and goes
+back with `--branch=main` before it ships; tkframe moved to `main` 2026-10-26 and goes back to `dev` after approval.
 
 User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wanderwall-sync.timer`, `wanderwall-lights` (indicator lights overlay), `picframe` (the upstream display engine)
 

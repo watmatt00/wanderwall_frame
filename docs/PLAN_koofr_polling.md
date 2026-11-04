@@ -104,9 +104,12 @@ All four frames have the same config: `load_geoloc: false`, `geo_key: this_needs
   - Interval 0 and party mode: no automatic counts.
   - Save, reload, and recovery from a corrupt cache file.
   - The `"unknown"` status.
-- **tkframe:**
+- **bfframe** (the `dev` test frame during the Apple review; tkframe is the review demo frame on `main` and is off
+  limits until approval):
+  - First make `frame` its active album: today `current_source: default` matches no album, so status never counts
+    and the before reading would be meaningless (`docs/test_runs/2026-11-03_dns_baseline.md`, bfframe section).
   - Watch `rclone size` processes for 10 min: only after syncs and manual actions.
-  - Pi-hole rows for .210 over 1 h, before and after.
+  - Pi-hole rows for .215 over 1 h, before (with the album active) and after.
   - The lights and the dashboard's Frame Status traffic light behave as before.
   - Delete a photo from the Tools tab; the count updates within ~10 s.
 - **Update `docs/TEST_PLAN.md`.**
@@ -117,7 +120,7 @@ All four frames have the same config: `load_geoloc: false`, `geo_key: this_needs
 
 1. **Pin the version** in a new file, `scripts/setup/picframe-requirements.txt`:
    - `picframe==2026.4.22`, plus its key dependencies (pi3d, Pillow, numpy, pi_heif, paho-mqtt) at tkframe's versions.
-   - Raising the pin becomes an ordinary release: dev → tkframe → tag → main.
+   - Raising the pin becomes an ordinary release: dev → the `dev` test frame → tag → main.
 2. **New `scripts/setup/update_engine.sh`** (`set -euo pipefail`, `flock`, standard log lines):
    - **Already at the pin:** do nothing (the normal case).
    - **Otherwise, build:**
@@ -150,8 +153,9 @@ All four frames have the same config: `load_geoloc: false`, `geo_key: this_needs
 
 - **`pf_pi_sim` as bookworm / Python 3.11**, twice: starting from 2024.11.1 (kframe) and from 2024.9.24 (mnbframe).
   - Check the upgrade, a forced failure with automatic rollback, the first-conversion rollback, and that a second run does nothing.
-- **tkframe (`dev`):**
-  - Pin 2024.11.1, then 2026.4.22, so both directions run on real hardware.
+- **bfframe (`dev`):**
+  - Pin 2024.11.1, then 2026.4.22, so both directions run on real hardware (Pi 5, trixie; kframe's bookworm case is
+    covered by `pf_pi_sim`).
   - Then a deliberately bad pin, to watch the rollback.
   - Then the hold flag and its button.
 
@@ -160,8 +164,9 @@ All four frames have the same config: `load_geoloc: false`, `geo_key: this_needs
 | Step | Frame | What | Gate |
 |---|---|---|---|
 | 1 | `pf_pi_sim` | Part B tests (bookworm, 3.11) | — |
-| 2 | tkframe | Parts A and B on `dev`, tests above | — |
-| 3 | bfframe | Expected: engine does nothing (already 2026.4.22); Part A arrives with promotion | promotion |
+| 2 | bfframe | Parts A and B on `dev`, tests above (moved to `dev` 2026-11-04 for the Apple review) | Matt moves it (`update_app.sh --branch=dev`) |
+| 3 | bfframe | Back to `main` before it ships (`update_app.sh --branch=main`); engine already at the pin | Matt |
+| — | tkframe | Untouched until approval (review demo frame on `main`); afterwards back to `dev` | approval |
 | 4 | — | Tag `v5.0.X`, merge `dev` → `main`; not before the Apple review is done (`main` frozen) | **Matt's explicit OK** |
 | 5 | kframe | First real bookworm engine upgrade; at home, so a screen and keyboard are at hand if needed. Monthly auto-update (Dec 2, 03:30) or Update button | **Matt's OK** for any manual update |
 | 6 | mnbframe | **Two steps** (Matt, 2026-11-03), see below | **Matt's OK** for each step |
