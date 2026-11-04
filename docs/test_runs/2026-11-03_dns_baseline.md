@@ -61,6 +61,18 @@ returns `current_source: Unknown`, `sync_status: idle`, and never runs `rclone s
 **Not a valid "before" reading:** make `frame` the active album first (KP-019), then take a 1 h reading for .215
 with the same queries (client `192.168.102.215`).
 
+**Valid "before" for bfframe (taken 2026-11-04 10:37).** Matt moved bfframe to `dev` and activated `frame`
+(picframe restarted 09:34:12 and 09:35:54; see the frozen-engine note in the parking lot). Fixed window
+**09:36:00–10:36:00 MST**:
+
+| Pi-hole | Rows in 1 h | Domain |
+|---|---|---|
+| pihole1 | 1,180 | all `app.koofr.net` |
+| pihole2 | 1,178 | all `app.koofr.net` |
+
+About 28k per Pi-hole a day at that rate, the same as tkframe. On the frame: 12 `rclone size` starts in 60 s
+(09:37). Re-run with `timestamp >= <start> and timestamp < <end>` and client `192.168.102.215` for the "after".
+
 Sources: indicator lights poll `/dashboard/status` every 10 s (`scripts/indicator_lights.py:25`), each poll runs
 `rclone size`; open dashboard tabs add one every 15 s (`dashboard.js:727`), also in background tabs.
 
