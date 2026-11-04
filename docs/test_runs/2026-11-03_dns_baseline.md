@@ -108,4 +108,17 @@ Compare a full 24 h that starts after the change is live on that frame (the quer
 
 ## Results after the changes
 
-(add here: date, frame, version, the same tables)
+### 2026-11-04, bfframe, Part A (cloud count cache, frame `dev` `abacb39`)
+
+Update applied and API restarted 12:19:58 MST. Fixed window **12:21:00–13:21:00 MST** (taken 13:22):
+
+| Pi-hole | Before (09:36–10:36) | After (12:21–13:21) | Change |
+|---|---|---|---|
+| pihole1 | 1,180 | **16** | −98.6% |
+| pihole2 | 1,178 | **16** | −98.6% |
+
+All `app.koofr.net`. 16 = 4 syncs (12:30, 12:45, 13:00, 13:15) × 2 rclone runs (the sync and the count after
+it) × A + AAAA, as expected. About 384 per Pi-hole a day (the plan expected ~400; before ~28k).
+On the frame: 0 `rclone size` starts in 120 s (12:20:47–12:22:47; before, 12 in 60 s). One count at
+12:20:01 right after the restart (album never counted, sync timer running), then none outside syncs.
+Still to check: a manual delete in the Tools tab recounts within ~10 s (Matt).
