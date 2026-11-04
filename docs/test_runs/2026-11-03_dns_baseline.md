@@ -121,4 +121,9 @@ All `app.koofr.net`. 16 = 4 syncs (12:30, 12:45, 13:00, 13:15) × 2 rclone runs 
 it) × A + AAAA, as expected. About 384 per Pi-hole a day (the plan expected ~400; before ~28k).
 On the frame: 0 `rclone size` starts in 120 s (12:20:47–12:22:47; before, 12 in 60 s). One count at
 12:20:01 right after the restart (album never counted, sync timer running), then none outside syncs.
-Still to check: a manual delete in the Tools tab recounts within ~10 s (Matt).
+Manual change through the frame: **pass.** Matt rotated one photo 180° in Tools → Rotate Photos (the Tools tab
+has no plain delete); log 13:59:19 "Rotated '20261027_013101_e2e2.heic' (180)", 13:59:29 "Cloud count for
+koofr:KFR_frame: 5" (one recount, on the lights' next poll), status match 5/5. Changes made directly in Koofr
+aren't seen until the next sync, by design.
+Found: the cache keeps a non-album path (`koofr:.picframe/frames/<serial>.yaml`, the frame registry upload) in
+`pending` for good; harmless for counts, fix planned (look up the album in `source_manager`, drop `pending`).
