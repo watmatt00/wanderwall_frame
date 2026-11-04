@@ -9,8 +9,9 @@ When the count is refreshed:
 - after every successful sync (sync_service.sync_source), so it follows whatever sync timer is
   actually running: interval 0 or party mode (timer stopped) means no automatic counts;
 - after a manual change to the cloud (upload, delete, rename, rotate, purge...): the rclone write
-  helpers call `mark_changed()`, and the next status read recounts once (a batch of 200 renames
-  costs one count);
+  helpers call `mark_changed()`, which finds the configured album(s) the path belongs to; the next
+  status read recounts each once (a batch of 200 renames costs one count). Paths outside every
+  album (the frame registry's `.picframe/frames/<serial>.yaml`) are ignored;
 - when the active album changes (a manual action), on the next status read;
 - when an album has never been counted, on the next status read, but only while the sync timer runs;
 - when a live count is made elsewhere (Albums tab, the app's per-folder sync status): `store()`.
@@ -29,6 +30,7 @@ from pathlib import Path
 import yaml
 
 from src.config.settings import get_settings
+from src.services.source_manager import source_manager
 from src.utils.rclone import add_cloud_change_listener, rclone_try_count
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,7 @@ class CloudCountCache:
         """Create an empty cache backed by `path` (loaded on first use)."""
         self.path = path
         self._entries: dict[str, dict] = {}
-        self._pending: set[str] = set()  # changed cloud paths not matching a counted album yet
+        self._needs: set[str] = set()  # albums changed by hand but never counted yet
         self._last_active: str | None = None
         self._loaded = False
         self._locks: dict[str, asyncio.Lock] = {}
@@ -90,18 +92,20 @@ class CloudCountCache:
                     }
             active = data.get("last_active")
             self._last_active = _norm(active) if isinstance(active, str) else None
-            pending = data.get("pending") or []
-            self._pending = {_norm(p) for p in pending if isinstance(p, str)}
+            needs = data.get("needs_count") or []
+            self._needs = {_norm(n) for n in needs if isinstance(n, str)}
+            # Files from abacb39 also have "pending" (any changed path, albums or not): ignored,
+            # and gone from the file at the next save
         except (OSError, yaml.YAMLError, AttributeError) as e:
             logger.warning(f"Cloud count cache unreadable, starting empty: {e}")
-            self._entries, self._pending, self._last_active = {}, set(), None
+            self._entries, self._needs, self._last_active = {}, set(), None
 
     def _save(self) -> None:
         """Write the cache atomically (temp file in the same folder, then rename)."""
         data = {
             "counts": self._entries,
             "last_active": self._last_active,
-            "pending": sorted(self._pending),
+            "needs_count": sorted(self._needs),
         }
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -120,7 +124,7 @@ class CloudCountCache:
     # --- updates -----------------------------------------------------------------------------
 
     def store(self, remote: str, count: int) -> None:
-        """Record a fresh count for an album (clears its stale flag and any pending change)."""
+        """Record a fresh count for an album (clears its stale and needs-count flags)."""
         self._load()
         key = _norm(remote)
         self._entries[key] = {
@@ -128,22 +132,38 @@ class CloudCountCache:
             "checked_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "stale": False,
         }
-        self._pending = {p for p in self._pending if not _related(p, key)}
+        self._needs.discard(key)
         self._failed_at.pop(key, None)
         self._save()
+
+    @staticmethod
+    def _albums_for(path: str) -> set[str]:
+        """Configured albums (rclone remotes) that `path` is in, is, or contains."""
+        try:
+            sources = source_manager.list_sources()
+        except (OSError, ValueError, yaml.YAMLError) as e:
+            logger.warning(f"Cloud count cache: couldn't read the albums: {e}")
+            return set()
+        remotes = {_norm(s.rclone_remote) for s in sources if s.rclone_remote}
+        return {r for r in remotes if _related(path, r)}
 
     def mark_changed(self, remote_path: str) -> None:
         """A manual action changed the cloud at `remote_path`: recount it on the next read."""
         self._load()
         path = _norm(remote_path)
-        hit = False
-        for key, entry in self._entries.items():
-            if _related(path, key):
+        albums = self._albums_for(path)
+        # Counted albums that aren't configured any more still get marked (harmless, rare)
+        albums |= {key for key in self._entries if _related(path, key)}
+        if not albums:
+            logger.debug(f"Cloud change outside every album ignored: {path}")
+            return
+        for key in albums:
+            entry = self._entries.get(key)
+            if entry is not None:
                 entry["stale"] = True
-                self._failed_at.pop(key, None)
-                hit = True
-        if not hit:
-            self._pending.add(path)
+            else:
+                self._needs.add(key)
+            self._failed_at.pop(key, None)
         self._save()
 
     # --- reads -------------------------------------------------------------------------------
@@ -167,12 +187,8 @@ class CloudCountCache:
             return False
         entry = self._entries.get(key)
         if entry is None:
-            return active_changed or bool(self._pending_for(key)) or sync_timer_running()
-        return entry["stale"] or active_changed or bool(self._pending_for(key))
-
-    def _pending_for(self, key: str) -> set[str]:
-        """Pending changed paths that belong to this album."""
-        return {p for p in self._pending if _related(p, key)}
+            return active_changed or key in self._needs or sync_timer_running()
+        return entry["stale"] or active_changed
 
     async def count_for_status(self, remote: str) -> int | None:
         """
@@ -192,7 +208,7 @@ class CloudCountCache:
         async with lock:
             # Another request may have counted while this one waited
             entry = self._entries.get(key)
-            fresh = entry is not None and not entry["stale"] and not self._pending_for(key)
+            fresh = entry is not None and not entry["stale"] and key not in self._needs
             if fresh and not active_changed:
                 return entry["count"]
             try:

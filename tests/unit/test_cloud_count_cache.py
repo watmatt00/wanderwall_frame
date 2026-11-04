@@ -56,6 +56,17 @@ def timer(monkeypatch):
     return state
 
 
+@pytest.fixture(autouse=True)
+def albums(monkeypatch):
+    """The frame's configured albums, as source_manager would list them."""
+    remotes = [ALBUM, OTHER, "koofr:KFR_a/sub", ""]  # "" = an album with no cloud folder
+    fake = SimpleNamespace(
+        list_sources=lambda: [SimpleNamespace(rclone_remote=r) for r in remotes]
+    )
+    monkeypatch.setattr(ccc, "source_manager", fake)
+    return remotes
+
+
 @pytest.fixture
 def cache(tmp_path, counter, timer):
     """A cache backed by a temp file."""
@@ -94,12 +105,41 @@ async def test_manual_change_recounts_once_for_a_batch(cache, counter):
 
 async def test_manual_change_counts_even_with_sync_off(cache, counter, timer):
     timer.interval = 0
-    cache.mark_changed(f"{ALBUM}/new.jpg")  # album never counted: kept as a pending change
+    cache.mark_changed(f"{ALBUM}/new.jpg")  # album never counted: found via the album list
+    assert cache._needs == {ALBUM}
     assert await cache.count_for_status(ALBUM) == 5
     assert counter.calls == [ALBUM]
-    assert cache._pending == set()  # the pending change was used up by that count
+    assert cache._needs == set()  # used up by that count
     assert await cache.count_for_status(ALBUM) == 5
     assert counter.calls == [ALBUM]  # and nothing more is counted automatically
+
+
+async def test_change_outside_every_album_is_ignored(cache, counter, timer, tmp_path):
+    cache.store(ALBUM, 7)
+    before = cache.path.read_text()
+    cache.mark_changed("koofr:.picframe/frames/87ce1fb02fce8e46.yaml")  # frame registry upload
+    cache.mark_changed("koofr:KFR_leftover")  # demo reset purging a folder that's no album
+    assert cache.path.read_text() == before  # nothing recorded, file not even rewritten
+    assert cache._needs == set()
+    assert await cache.count_for_status(ALBUM) == 7
+    assert counter.calls == []
+
+
+async def test_old_file_with_pending_loads_and_drops_it(tmp_path, counter, timer):
+    path = tmp_path / "cloud_counts.yaml"
+    path.write_text(yaml.safe_dump({  # as written by abacb39 on bfframe
+        "counts": {ALBUM: {"count": 5, "checked_at": "2026-11-04 12:20:01", "stale": False}},
+        "last_active": ALBUM,
+        "pending": ["koofr:.picframe/frames/87ce1fb02fce8e46.yaml"],
+    }))
+    cache = CloudCountCache(path=path)
+    assert await cache.count_for_status(ALBUM) == 5
+    assert counter.calls == []
+    cache.mark_changed(f"{ALBUM}/a.jpg")  # next save rewrites the file
+    data = yaml.safe_load(path.read_text())
+    assert "pending" not in data
+    assert data["needs_count"] == []
+    assert data["counts"][ALBUM]["stale"] is True
 
 
 async def test_change_to_other_album_leaves_this_one(cache, counter):
