@@ -5,8 +5,8 @@ Written 2026-11-03. Status: **planned, not started.** Two parts:
 - **Part A:** cache the cloud photo count so status requests stop starting `rclone size`.
 - **Part B:** a safe way to upgrade the picframe display engine on production frames. The old engine retries refused Nominatim lookups forever.
 
-**Tracker:** http://utility.home/trackers/koofr-polling/ (items KP-001…, file `wanderwall_app/docs/TRACKER_koofr_polling.md`
-on `dev`). Kept off the parking lot while `main` is frozen for Apple review; copy into it afterwards (KP-032).
+**Tracker:** the items (KP-001…036) are in `wanderwall_app/docs/PARKING_LOT.md`, Frame Backend & Setup, on the
+WanderWall page http://utility.home:8765/ (folded in 2026-11-04; the koofr-polling tracker is retired).
 
 ## Why: what the Pi-hole audit found
 

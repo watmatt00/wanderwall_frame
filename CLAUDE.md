@@ -129,7 +129,7 @@ Two iOS apps: WanderWall – Photo Frame (Manager, admin) and WanderWall Share (
 | `wanderwall_frame` (this) | Pi backend + dashboard | Defines API | `~/Downloads/GitHub/wanderwall_frame` |
 | `wanderwall_app` | Mobile apps (iOS only) | Consumes API | `~/Downloads/GitHub/wanderwall_app` |
 
-Known issues and parking lot for BOTH repos: `wanderwall_app/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`). Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
+Known issues and parking lot for BOTH repos: `wanderwall_app/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`), shown at http://utility.home:8765/ (ticks go to `wanderwall_app` `dev` during the Apple review). The Apple runbook is `wanderwall_app/docs/RUNBOOK_apple.md` (archived after approval). Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
 Phase 4, 5 & 6 plan in `docs/PHASE_4_5_PLAN.md` is historical (all built). Next steps come from the parking lot.
 Test plan in `docs/TEST_PLAN.md` - covers backend, dashboard, and iOS app. Test runs stored in `docs/test_runs/`.
 Phase 6 setup guide in `docs/PI_SETUP.md` — includes WiFi recovery usage guide and troubleshooting.
