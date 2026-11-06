@@ -8,7 +8,8 @@
 #   3. Postpones when no screen is on (none, or display sleep): the health check needs the
 #      engine running, and it can't start without a screen (PL-187).
 #   4. Builds ~/venv_picframe-<version> at its final path (venvs can't be moved) and smoke
-#      tests it.
+#      tests it: imports picframe, its entry module picframe.start (where 2024.11.1 fails on
+#      Python 3.12+, no distutils) and pi3d, without a screen.
 #   5. First run on a frame: ~/venv_picframe is a real folder. It's renamed to
 #      ~/venv_picframe-<old version> with its bin/ shebangs and activate scripts rewritten,
 #      so the old engine keeps working there and rollback to it works.
@@ -150,7 +151,8 @@ rewrite_venv_paths() {
     done
     for f in "$dir"/bin/activate "$dir"/bin/activate.csh "$dir"/bin/activate.fish "$dir"/pyvenv.cfg; do
         if [[ -f "$f" ]]; then
-            sed -i "s|$old\\([/\"' ]\\)|$dir\\1|g; s|$old\$|$dir|" "$f"
+            # Any character that can't continue a path name ends it: / " ' space ) ; : …
+            sed -i "s|$old\\([^-A-Za-z0-9._]\\)|$dir\\1|g; s|$old\$|$dir|" "$f"
         fi
     done
 }
@@ -240,7 +242,7 @@ if ! { "$PYTHON" -m venv "$NEW_VENV" \
 fi
 built="$(engine_version "$NEW_VENV")"
 if [[ "$built" != "$TARGET_VERSION" ]] \
-   || ! "$NEW_VENV/bin/python" -c 'import picframe, pi3d' > /dev/null 2>>"$build_log" \
+   || ! "$NEW_VENV/bin/python" -c 'import picframe, picframe.start, pi3d' > /dev/null 2>>"$build_log" \
    || ! matches_pin "$NEW_VENV"; then
     rm -rf "$NEW_VENV"
     ERR "Failed smoke test of display engine $TARGET_VERSION (got '${built:-none}'); $CURRENT_VERSION kept"

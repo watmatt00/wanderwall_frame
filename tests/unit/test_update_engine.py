@@ -45,7 +45,7 @@ VENV_PYTHON = textwrap.dedent("""\
     venv="$(dirname "$(dirname "$0")")"
     case "$*" in
         *"m.version"*) cat "$venv/fake_version" ;;
-        *"import picframe, pi3d"*) [[ ! -f "$venv/fake_import_fails" ]] ;;
+        *"import picframe, picframe.start, pi3d"*) [[ ! -f "$venv/fake_import_fails" ]] ;;
         "-m pip freeze") cat "$venv/fake_freeze" ;;
         "-m pip install"*)
             [[ -z "${FAKE_PIP_FAIL:-}" ]] || { echo "pip: simulated failure" >&2; exit 1; }
@@ -53,6 +53,7 @@ VENV_PYTHON = textwrap.dedent("""\
             grep -E '^[A-Za-z0-9].*==' "$req" > "$venv/fake_freeze"
             sed -nE 's/^picframe==(.*)/\\1/p' "$req" > "$venv/fake_version"
             [[ -n "${FAKE_NEW_UNHEALTHY:-}" ]] || touch "$venv/healthy"
+            [[ -z "${FAKE_NEW_IMPORT_FAILS:-}" ]] || touch "$venv/fake_import_fails"
             ;;
         *) echo "fake venv python: unexpected args: $*" >&2; exit 2 ;;
     esac
@@ -69,6 +70,8 @@ SYSTEM_PYTHON = textwrap.dedent("""\
     printf '#!%s/bin/python\\n# engine entry point\\n' "$dir" > "$dir/bin/picframe"
     chmod +x "$dir/bin/picframe"
     printf 'VIRTUAL_ENV="%s"\\nexport VIRTUAL_ENV\\n' "$dir" > "$dir/bin/activate"
+    printf '    VIRTUAL_ENV=$(cygpath %s)\\n' "$dir" >> "$dir/bin/activate"   # Python 3.13 style
+    printf '    export VIRTUAL_ENV=%s\\n' "$dir" >> "$dir/bin/activate"
     printf 'home = /usr/bin\\ncommand = /usr/bin/python3 -m venv %s\\n' "$dir" > "$dir/pyvenv.cfg"
     """)
 
@@ -255,7 +258,10 @@ def test_first_conversion_and_upgrade(frame: Frame) -> None:
 
     # The old engine's own paths now name its new folder, so it runs there (rollback works)
     assert (old_dir / "bin" / "picframe").read_text().splitlines()[0] == f"#!{old_dir}/bin/python"
-    assert f'VIRTUAL_ENV="{old_dir}"' in (old_dir / "bin" / "activate").read_text()
+    activate = (old_dir / "bin" / "activate").read_text()
+    assert f'VIRTUAL_ENV="{old_dir}"' in activate
+    assert f"cygpath {old_dir})" in activate and f"export VIRTUAL_ENV={old_dir}\n" in activate
+    assert f"{frame.link}" not in activate.replace(str(old_dir), "")
     assert str(old_dir) in (old_dir / "pyvenv.cfg").read_text()
     assert (new_dir / "bin" / "picframe").read_text().splitlines()[0] == f"#!{new_dir}/bin/python"
 
@@ -304,6 +310,18 @@ def test_build_failure_keeps_old_engine_untouched(frame: Frame) -> None:
     assert frame.state_value("last_result") == "failed"
     assert frame.systemctl_calls() == []
     assert (frame.home / ".wanderwall" / "logs" / "engine-build.log").read_text().strip()
+
+
+def test_engine_that_fails_its_entry_import_never_reaches_the_screen(frame: Frame) -> None:
+    """picframe 2024.11.1 on Python 3.13 (no distutils): the smoke test stops it before any swap."""
+    frame.old_engine_folder()
+    result = frame.run(FAKE_NEW_IMPORT_FAILS="1")
+    assert result.returncode == 1
+    assert "Failed smoke test" in result.stderr
+    assert frame.link.is_dir() and not frame.link.is_symlink()   # not even converted
+    assert not (frame.home / f"venv_picframe-{NEW}").exists()
+    assert frame.state_value("last_result") == "failed"
+    assert frame.systemctl_calls() == []
 
 
 def test_keeps_one_previous_engine(frame: Frame) -> None:
