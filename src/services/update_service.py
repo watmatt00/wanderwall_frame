@@ -470,8 +470,12 @@ async def get_update_status() -> dict:
     Get current update configuration, last check result, and installed version.
 
     Returns:
-        Dict with schedule settings, last check info, local version/commit and branch
+        Dict with schedule settings, last check info, local version/commit, branch and
+        the display engine's status ("engine", KP-014)
     """
+    # Imported here: engine_service imports this module (get_repo_path)
+    from src.services.engine_service import get_engine_status
+
     settings = get_settings()
     local_commit = await get_local_commit()
     local_version = await get_local_version()
@@ -487,6 +491,7 @@ async def get_update_status() -> dict:
         "local_version": local_version,
         "local_commit": local_commit,
         "branch": branch,
+        "engine": await get_engine_status(),
     }
 
 

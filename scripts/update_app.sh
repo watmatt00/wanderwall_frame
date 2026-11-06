@@ -132,6 +132,8 @@ fi
 # Add new managed services here as they are introduced.
 MANAGED_SERVICES=(wanderwall-api wanderwall-lights)
 MANAGED_TIMERS=(wanderwall-sync)
+# Timers started as soon as they're enabled (the sync timer waits for the next boot as before)
+STARTED_TIMERS=(wanderwall-display-watch)
 
 for svc in "${MANAGED_SERVICES[@]}"; do
     unit="$svc.service"
@@ -149,6 +151,18 @@ for tmr in "${MANAGED_TIMERS[@]}"; do
     if ! systemctl --user is-enabled --quiet "$unit" 2>/dev/null; then
         systemctl --user enable "$unit"
         LOG "  Enabled: $unit"
+    fi
+done
+
+for tmr in "${STARTED_TIMERS[@]}"; do
+    unit="$tmr.timer"
+    [[ -f "$SYSTEMD_USER_DIR/$unit" ]] || continue
+    if ! systemctl --user is-enabled --quiet "$unit" 2>/dev/null; then
+        if systemctl --user enable --now "$unit"; then
+            LOG "  Enabled and started: $unit"
+        else
+            WARN "Failed to enable $unit (systemctl --user status $unit)"
+        fi
     fi
 done
 
@@ -197,6 +211,31 @@ PYEOF
     fi
 else
     LOG "picframe config not found at $PCONF — skipping migrations."
+fi
+
+# ── Step 6: display launcher (PL-187) ─────────────────────────────────────────
+# Points ~/start_picframe.sh at scripts/display/start_picframe.sh, which waits for a screen
+# before starting the engine. Takes effect at the next display restart.
+if ! bash "$PROJECT_DIR/scripts/display/install_launcher.sh"; then
+    WARN "Display launcher not installed (see the lines above)"
+fi
+
+# ── Step 7: display engine update, in the background (KP-013) ─────────────────
+# update_engine.sh can take several minutes (pip on a Pi), longer than the 120 s the API
+# gives this script, and the API restarts right after this script. A transient user unit
+# runs outside the API's cgroup, so it carries on. It does nothing when the engine matches
+# the pin or the frame is on hold; its result goes to wanderwall.log and the Updates card.
+ENGINE_SCRIPT="$PROJECT_DIR/scripts/setup/update_engine.sh"
+ENGINE_UNIT="wanderwall-engine-update"
+if [[ ! -f "$ENGINE_SCRIPT" ]]; then
+    WARN "Engine updater not found: $ENGINE_SCRIPT"
+elif systemctl --user is-active --quiet "$ENGINE_UNIT" 2>/dev/null; then
+    LOG "Display engine update already running ($ENGINE_UNIT); not starting another"
+elif systemd-run --user --unit="$ENGINE_UNIT" --collect --quiet \
+        --description="WanderWall display engine update" /bin/bash "$ENGINE_SCRIPT"; then
+    LOG "Display engine check started in the background ($ENGINE_UNIT; result in wanderwall.log)"
+else
+    WARN "Failed to start the display engine check (systemd-run --user --unit=$ENGINE_UNIT)"
 fi
 
 LOG "update_app.sh complete."

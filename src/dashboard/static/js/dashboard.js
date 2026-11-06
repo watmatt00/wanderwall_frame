@@ -224,6 +224,7 @@ function initAdvancedToggles() {
     const updatesToggle = document.getElementById('updates-toggle');
     const updatesSection = document.getElementById('updates-section');
     if (updatesToggle && updatesSection) {
+        loadEngineStatus();
         const updatesHeader = updatesToggle.closest('.card-header');
         updatesToggle.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1744,6 +1745,103 @@ async function applyUpdate() {
         if (btn) btn.disabled = false;
         if (spinner) spinner.style.display = 'none';
         if (label) label.textContent = 'Apply Now';
+    }
+}
+
+// ── Display engine (KP-014 / KP-015) ─────────────────────────────────────────
+const ENGINE_RESULT_TEXT = {
+    ok: ['Upgraded', '#34d399'],
+    up_to_date: ['Matches the pin', '#34d399'],
+    on_hold: ['Upgrade on hold', '#f59e0b'],
+    postponed: ['Upgrade postponed (no screen on)', '#f59e0b'],
+    rolled_back: ['Upgrade failed, rolled back', '#f87171'],
+    failed: ['Upgrade failed', '#f87171'],
+};
+let _enginePollTimer = null;
+
+function _engineSpan(text, color) {
+    const span = document.createElement('span');
+    span.textContent = text;
+    span.style.color = color;
+    return span;
+}
+
+function renderEngineStatus(e) {
+    const installedEl = document.getElementById('engine-installed-version');
+    const pinnedEl = document.getElementById('engine-pinned-version');
+    const statusEl = document.getElementById('engine-status-text');
+    const btn = document.getElementById('btn-upgrade-engine');
+    if (!installedEl || !statusEl) return;
+
+    installedEl.textContent = e.installed_version || 'unknown';
+    if (pinnedEl) {
+        pinnedEl.textContent = (e.pinned_version && !e.matches_pin) ? '(pinned: ' + e.pinned_version + ')' : '';
+    }
+
+    statusEl.replaceChildren();
+    if (e.running) {
+        statusEl.appendChild(_engineSpan('Upgrading… the display restarts once', '#60a5fa'));
+    } else if (e.on_hold && !e.matches_pin) {
+        statusEl.appendChild(_engineSpan('Upgrade on hold', '#f59e0b'));
+    } else if (e.last_result && ENGINE_RESULT_TEXT[e.last_result]) {
+        const [text, color] = ENGINE_RESULT_TEXT[e.last_result];
+        statusEl.appendChild(_engineSpan(text, color));
+    } else if (e.matches_pin) {
+        statusEl.appendChild(_engineSpan('Matches the pin', '#34d399'));
+    } else {
+        statusEl.appendChild(_engineSpan('Upgrade available', '#f59e0b'));
+    }
+    if (e.message && !e.running) statusEl.title = e.message + (e.last_run ? ' (' + e.last_run + ')' : '');
+
+    if (btn) {
+        const show = !e.running && !e.matches_pin && !!e.installed_version && !!e.pinned_version;
+        btn.style.display = show ? '' : 'none';
+    }
+
+    clearTimeout(_enginePollTimer);
+    if (e.running) _enginePollTimer = setTimeout(loadEngineStatus, 5000);
+}
+
+async function loadEngineStatus() {
+    try {
+        const resp = await fetch('/api/updates/engine');
+        if (!resp.ok) throw new Error('Server error ' + resp.status);
+        renderEngineStatus(await resp.json());
+    } catch (err) {
+        const statusEl = document.getElementById('engine-status-text');
+        if (statusEl) {
+            statusEl.replaceChildren(_engineSpan('Couldn\'t read: ' + err.message, '#f87171'));
+        }
+    }
+}
+
+async function upgradeEngine() {
+    const btn = document.getElementById('btn-upgrade-engine');
+    const spinner = document.getElementById('btn-upgrade-engine-spinner');
+    const label = document.getElementById('btn-upgrade-engine-label');
+
+    if (!confirm('Upgrade the display engine now? It takes several minutes, the display restarts once, ' +
+                 'and it rolls back by itself if the new engine doesn\'t answer.')) return;
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.style.display = 'inline-block';
+    if (label) label.textContent = 'Starting...';
+    try {
+        const resp = await fetch('/api/updates/engine/upgrade', { method: 'POST' });
+        if (!resp.ok) throw new Error('Server error ' + resp.status);
+        const data = await resp.json();
+        if (data.ok) {
+            _setUpdateMsg(data.message || 'Engine update started.', '#34d399');
+        } else {
+            _setUpdateMsg('Engine upgrade not started: ' + (data.error || 'unknown error'), '#f87171');
+        }
+    } catch (err) {
+        _setUpdateMsg('Error: ' + err.message, '#f87171');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (label) label.textContent = 'Upgrade Engine';
+        loadEngineStatus();
     }
 }
 

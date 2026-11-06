@@ -330,6 +330,11 @@ check_funnel_public() {
     log "  WARNING: Funnel still not reachable from the internet. Check: sudo tailscale funnel status"
 }
 
+# Branch name goes into git commands and the engine pin URL: allow only a plain ref name.
+if [[ ! "$BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+    log "ERROR: invalid branch name: $BRANCH"; exit 1
+fi
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 LAST=$(last_step)
 log "=== WanderWall install | user=$ACTUAL_USER step=$LAST frame=${FRAME_NAME:-?} branch=${BRANCH:-?} ==="
@@ -393,6 +398,16 @@ PYEOF
 
     # Settings and albums
     install -d -m 700 -o "$ACTUAL_USER" -g "$ACTUAL_USER" "$ACTUAL_HOME/.wanderwall"
+    # Keep the v4 engine and put its upgrade on hold (KP-015): update_engine.sh skips the
+    # frame until Upgrade is pressed on the Updates card, so no automatic update swaps it.
+    ENGINE_STATE="$ACTUAL_HOME/.wanderwall/engine.yaml"
+    if [[ ! -f "$ENGINE_STATE" ]]; then
+        printf '%s\n' "# Written by install.sh --from-v4; the Updates card's Upgrade button clears the hold" \
+            "upgrade: hold" > "$ENGINE_STATE"
+        chown "$ACTUAL_USER:$ACTUAL_USER" "$ENGINE_STATE"
+        chmod 600 "$ENGINE_STATE"
+        log "  Display engine kept; its upgrade is on hold (Updates card → Upgrade)"
+    fi
     for f in config.yaml sources.yaml frame_albums.yaml deleted_albums.yaml; do
         [[ -f "$V4_DATA/$f" ]] || continue
         install -m 600 -o "$ACTUAL_USER" -g "$ACTUAL_USER" "$V4_DATA/$f" "$ACTUAL_HOME/.wanderwall/$f"
@@ -648,9 +663,26 @@ fi
 if [[ "$LAST" -lt 6 ]]; then
     check_internet
     phase 5 "picframe pip install"
-    as_user python3 -m venv "$ACTUAL_HOME/venv_picframe"
-    as_user "$ACTUAL_HOME/venv_picframe/bin/pip" install --upgrade pip -q
-    as_user "$ACTUAL_HOME/venv_picframe/bin/pip" install picframe
+    # The pinned engine (KP-010/KP-015), the same file update_engine.sh uses. The repo isn't
+    # cloned yet (Phase 6), so fetch the pin from the branch being installed.
+    PIN_URL="https://raw.githubusercontent.com/watmatt00/wanderwall_frame/$BRANCH/scripts/setup/picframe-requirements.txt"
+    PIN_FILE="$(mktemp /tmp/picframe-requirements.XXXXXX)"
+    chmod 644 "$PIN_FILE"
+    curl -fsSL "$PIN_URL" -o "$PIN_FILE" || { log "ERROR: couldn't download the engine pin: $PIN_URL"; exit 1; }
+    ENGINE_VERSION="$(sed -nE 's/^[Pp]icframe==([0-9]+(\.[0-9]+)*)[[:space:]]*$/\1/p' "$PIN_FILE" | head -n 1)"
+    [[ -n "$ENGINE_VERSION" ]] || { log "ERROR: no picframe==<version> line in $PIN_URL"; exit 1; }
+    ENGINE_LINK="$ACTUAL_HOME/venv_picframe"
+    ENGINE_DIR="$ACTUAL_HOME/venv_picframe-$ENGINE_VERSION"
+    if [[ -d "$ENGINE_LINK" && ! -L "$ENGINE_LINK" ]]; then
+        mv -T "$ENGINE_LINK" "$ENGINE_LINK.unpinned-$(date +%Y%m%d%H%M%S)"
+        log "  Moved an unpinned $ENGINE_LINK aside"
+    fi
+    log "  Building display engine $ENGINE_VERSION in $ENGINE_DIR"
+    as_user python3 -m venv "$ENGINE_DIR"
+    as_user "$ENGINE_DIR/bin/python" -m pip install --no-cache-dir --disable-pip-version-check -r "$PIN_FILE"
+    as_user ln -sfn "$ENGINE_DIR" "$ENGINE_LINK"
+    rm -f "$PIN_FILE"
+    log "  ✓ Display engine $ENGINE_VERSION installed ($ENGINE_LINK -> $ENGINE_DIR)"
     log "  Running picframe -i to initialize config and data directories..."
     if printf '\n\n\n' | as_user "$ACTUAL_HOME/venv_picframe/bin/picframe" -i "$ACTUAL_HOME/" \
             2>&1 | tee -a "$LOG_FILE"; then
@@ -729,15 +761,9 @@ fi
 if [[ "$LAST" -lt 9 && "$FROM_V4" != "true" ]]; then
     phase 8 "labwc display service"
 
-    # start_picframe.sh — called by labwc autostart
-    cat > "$ACTUAL_HOME/start_picframe.sh" <<EOF
-#!/bin/bash
-source $ACTUAL_HOME/venv_picframe/bin/activate
-export SDL_VIDEODRIVER=x11
-picframe &
-EOF
-    chmod +x "$ACTUAL_HOME/start_picframe.sh"
-    chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/start_picframe.sh"
+    # start_picframe.sh — called by labwc autostart; runs the repo's launcher, which waits
+    # for a screen before starting the engine (PL-187)
+    (cd /tmp && as_user env HOME="$ACTUAL_HOME" bash "$PROJECT_DIR/scripts/display/install_launcher.sh")
 
     as_user mkdir -p \
         "$ACTUAL_HOME/.config/labwc" \
@@ -786,7 +812,8 @@ if [[ "$LAST" -lt 10 ]]; then
     wait_for_user_systemd
 
     as_user mkdir -p "$ACTUAL_HOME/.config/systemd/user"
-    for svc in wanderwall-api.service wanderwall-sync.service wanderwall-sync.timer wanderwall-lights.service; do
+    for svc in wanderwall-api.service wanderwall-sync.service wanderwall-sync.timer wanderwall-lights.service \
+               wanderwall-display-watch.service wanderwall-display-watch.timer; do
         if [[ -f "$PROJECT_DIR/systemd/$svc" ]]; then
             cp "$PROJECT_DIR/systemd/$svc" "$ACTUAL_HOME/.config/systemd/user/"
             chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.config/systemd/user/$svc"
@@ -800,6 +827,10 @@ if [[ "$LAST" -lt 10 ]]; then
     user_systemctl enable --now wanderwall-api.service
     user_systemctl enable --now wanderwall-sync.timer
     user_systemctl enable --now wanderwall-lights.service
+    user_systemctl enable --now wanderwall-display-watch.timer
+    # --from-v4 skips Phase 8: point its start_picframe.sh at the launcher here (idempotent)
+    (cd /tmp && as_user env HOME="$ACTUAL_HOME" bash "$PROJECT_DIR/scripts/display/install_launcher.sh") \
+        || log "  WARNING: display launcher not installed (see above)"
 
     check_user_service wanderwall-api.service
     check_user_service wanderwall-lights.service

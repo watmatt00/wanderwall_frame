@@ -1975,6 +1975,30 @@ async def upload_archive(request: Request, target_id: Optional[str] = None, new_
         incoming.unlink(missing_ok=True)
 
 
+@router.get("/api/updates/engine")
+async def get_engine_status_api():
+    """
+    Display engine (picframe) version, pin, hold flag and last update result (KP-014).
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    from src.services.engine_service import get_engine_status
+
+    return await get_engine_status()
+
+
+@router.post("/api/updates/engine/upgrade")
+async def upgrade_engine_api():
+    """
+    Clear the engine upgrade hold and start update_engine.sh in the background (KP-015).
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    from src.services.engine_service import start_engine_upgrade
+
+    return await start_engine_upgrade("dashboard")
+
+
 @router.post("/api/updates/apply")
 async def apply_update_api():
     """

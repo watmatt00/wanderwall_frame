@@ -163,7 +163,7 @@ Admin = `require_admin`, Any = `get_current_device`, Contributor = `require_cont
 | **Logs** | | | |
 | `/api/v1/logs?lines=100&log_type=ops` | GET | Admin | `{entries, log_type, count}`. `lines` 1-500, `log_type` `ops` or `security` |
 | **Software updates** | | | |
-| `/api/v1/updates/settings` | GET | Admin | Update schedule, last check result, installed version and branch |
+| `/api/v1/updates/settings` | GET | Admin | Update schedule, last check result, installed version and branch, plus `engine`: the display engine's `installed_version`, `pinned_version`, `matches_pin`, `on_hold`, `running`, `last_result` (`ok`\|`up_to_date`\|`on_hold`\|`postponed`\|`rolled_back`\|`failed`\|null), `last_run`, `message`, `previous_version` (KP-014; additive, older apps ignore it) |
 | `/api/v1/updates/check` | POST | Admin | Check for an update now |
 | `/api/v1/updates/schedule` | POST | Admin | `{auto_check, auto_apply, frequency: daily\|weekly\|monthly, day, check_time: "HH:MM"}`. 403 while demo mode is on (PL-150) |
 | `/api/v1/updates/apply` | POST | Admin | Apply the update (git pull + `update_app.sh`), then restart the API. 403 while demo mode is on (PL-150): `{"detail": "Software updates are turned off on this demo frame. The frame owner applies updates."}` |
@@ -351,6 +351,8 @@ Every restore goes staging → the album's cloud folder → the album, so the ne
 | `/api/updates/check` | POST | Check for updates now |
 | `/api/updates/schedule` | POST | Save the auto-check schedule |
 | `/api/updates/apply` | POST | Apply the update (git pull + `update_app.sh`), then restart the API |
+| `/api/updates/engine` | GET | Display engine status, same object as `engine` in `/api/v1/updates/settings` (KP-014) |
+| `/api/updates/engine/upgrade` | POST | Clear the engine upgrade hold and start `scripts/setup/update_engine.sh` as the transient unit `wanderwall-engine-update`; `{ok, message}` or `{ok: false, error}` (KP-015). The engine restarts once and rolls back by itself if it doesn't answer |
 
 ### GET /dashboard/status
 

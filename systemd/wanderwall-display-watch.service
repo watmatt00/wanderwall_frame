@@ -1,0 +1,9 @@
+[Unit]
+Description=WanderWall display engine check (restarts picframe when it stops answering, KP-034)
+After=picframe.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/wanderwall_frame/scripts/display/display_watch.py
+StandardOutput=journal
+StandardError=journal

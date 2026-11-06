@@ -1,0 +1,10 @@
+[Unit]
+Description=WanderWall display engine check, once a minute (KP-034)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

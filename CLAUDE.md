@@ -40,6 +40,9 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 | `~/.wanderwall/sources.yaml` | Photo source definitions |
 | `~/.wanderwall/frame_albums.yaml` | Albums this frame owns (active/deleted), mirrored to Koofr `.picframe/frames/<pi-serial>.yaml` — Recover Albums ownership (PL-147) |
 | `~/.wanderwall/logs/wanderwall.log` | Operations log |
+| `~/venv_picframe` | Display engine (upstream picframe). A real folder on frames not yet converted; after `scripts/setup/update_engine.sh` runs, a symlink to `~/venv_picframe-<version>` built from the pin `scripts/setup/picframe-requirements.txt` (one previous version kept for rollback) |
+| `~/.wanderwall/engine.yaml` | Engine update result for the Updates card; `upgrade: hold` (set by `install.sh --from-v4`) keeps the engine until Upgrade is pressed |
+| `~/start_picframe.sh` | labwc autostart stub; runs `scripts/display/start_picframe.sh`, which waits for a screen before starting the engine (PL-187) |
 | `~/.wanderwall/logs/security.log` | Auth/security log |
 | `~/.local/share/systemd/timers/stamp-wanderwall-sync.timer` | Last sync timestamp |
 | `~/.config/systemd/user/wanderwall-api.service` | API service unit |
@@ -83,7 +86,7 @@ ssh pi@<frame> "bash ~/wanderwall_frame/scripts/update_app.sh --branch=dev"   # 
 Matt runs it (Pi frames are read-only for Claude). During the Apple review (2026-10-26 → 11-06) tkframe was the demo
 frame on `main` and bfframe the `dev` test frame; both moved back on 2026-11-06.
 
-User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wanderwall-sync.timer`, `wanderwall-lights` (indicator lights overlay), `picframe` (the upstream display engine)
+User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wanderwall-sync.timer`, `wanderwall-lights` (indicator lights overlay), `picframe` (the upstream display engine), `wanderwall-display-watch.timer` (restarts picframe when its :9000 API stops answering, KP-034), `wanderwall-engine-update` (transient, `update_engine.sh`)
 
 **Phase 6 system services** (run as root, `systemctl` without `--user`):
 - `wanderwall-watchdog` — WiFi monitor, enabled at boot

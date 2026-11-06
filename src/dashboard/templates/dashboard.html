@@ -638,6 +638,17 @@
                         <div class="service-value" id="update-last-checked">
                             {{ update_last_checked or 'Never' }}
                         </div>
+
+                        <div class="service-label" title="The picframe engine that shows the photos. Its version is pinned and upgraded separately from the app.">Display engine</div>
+                        <div class="service-value">
+                            <code id="engine-installed-version">&mdash;</code>
+                            <span style="color:#6b7280; font-size:0.8rem; margin-left:0.4rem;" id="engine-pinned-version"></span>
+                        </div>
+
+                        <div class="service-label">Engine status</div>
+                        <div class="service-value" id="engine-status-text">
+                            <span style="color: #9ca3af;">&mdash;</span>
+                        </div>
                     </div>
 
                     <!-- Action buttons -->
@@ -650,6 +661,11 @@
                                 {% if update_last_result != 'update_available' %}style="opacity:0.5;"{% endif %}>
                             <div class="btn-spinner" id="btn-apply-update-spinner" style="display:none;"></div>
                             <span id="btn-apply-update-label">Apply Now</span>
+                        </button>
+                        <button class="btn" id="btn-upgrade-engine" onclick="upgradeEngine()" style="display:none;"
+                                title="Builds the pinned display engine, restarts the display once and rolls back by itself if the new engine doesn't answer.">
+                            <div class="btn-spinner" id="btn-upgrade-engine-spinner" style="display:none;"></div>
+                            <span id="btn-upgrade-engine-label">Upgrade Engine</span>
                         </button>
                     </div>
 

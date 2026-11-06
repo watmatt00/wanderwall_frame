@@ -1,6 +1,6 @@
 # Plan: Koofr count polling and display engine updates
 
-Written 2026-11-03. Status: **planned, not started.** Two parts:
+Written 2026-11-03. Status (2026-11-06): **Part A built and checked on bfframe; Part B built on `dev`, unit tested, not yet run on a Pi** (next: `pf_pi_sim`, then tkframe). Two parts:
 
 - **Part A:** cache the cloud photo count so status requests stop starting `rclone size`.
 - **Part B:** a safe way to upgrade the picframe display engine on production frames. The old engine retries refused Nominatim lookups forever.
@@ -153,22 +153,62 @@ All four frames have the same config: `load_geoloc: false`, `geo_key: this_needs
 
 - **`pf_pi_sim` as bookworm / Python 3.11**, twice: starting from 2024.11.1 (kframe) and from 2024.9.24 (mnbframe).
   - Check the upgrade, a forced failure with automatic rollback, the first-conversion rollback, and that a second run does nothing.
-- **bfframe (`dev`):**
-  - Pin 2024.11.1, then 2026.4.22, so both directions run on real hardware (Pi 5, trixie; kframe's bookworm case is
+- **tkframe (`dev`, PL-188; was bfframe, KP-022, until bfframe went back to `main` on 2026-11-06):**
+  - Pin 2024.11.1, then 2026.4.22, so both directions run on real hardware (Pi 4, trixie; kframe's bookworm case is
     covered by `pf_pi_sim`).
   - Then a deliberately bad pin, to watch the rollback.
   - Then the hold flag and its button.
+  - Also the no-screen cases (PL-187): boot with the screen off, then turn it on; and the self-repair (KP-034, KP-035).
+
+### As built (2026-11-06, Part B plus PL-187 and KP-034)
+
+Matt's go 2026-11-06 for step 1, with PL-187 (no-screen crash) and KP-034 (self-repair) included.
+
+| Piece | File | Item |
+|---|---|---|
+| Pin: picframe 2026.4.22 and its 11 packages at tkframe's versions (all have Python 3.11 and 3.13 aarch64 wheels on PyPI, checked 2026-11-06) | `scripts/setup/picframe-requirements.txt` | KP-010 |
+| Engine updater | `scripts/setup/update_engine.sh` | KP-011, KP-012 |
+| Started in the background by `update_app.sh` (Step 7) as the transient unit `wanderwall-engine-update` | `scripts/update_app.sh` | KP-013 |
+| Updates card: engine version, pin, status, Upgrade button; `GET /api/updates/engine`, `POST /api/updates/engine/upgrade`; `engine` in `/api/v1/updates/settings` | `src/services/engine_service.py`, `src/dashboard/…` | KP-014 |
+| `install.sh`: fresh installs build the pinned engine at `~/venv_picframe-<version>` (pin fetched from the branch being installed, since the repo isn't cloned until Phase 6); `--from-v4` keeps the engine and sets the hold | `scripts/setup/install.sh` | KP-015 |
+| Launcher: waits for a screen, runs the engine from `~/venv_picframe`, ends labwc when the engine exits so systemd restarts the display | `scripts/display/start_picframe.sh`, `screen_lib.sh`, `install_launcher.sh` | PL-187 |
+| Self-repair: once a minute; 3 failed :9000 checks in a row → restart picframe; at most 3 restarts in 6 h | `scripts/display/display_watch.py`, `systemd/wanderwall-display-watch.*` | KP-034 |
+
+**Changes from the design above (and why):**
+- **Hold flag in `~/.wanderwall/engine.yaml`, not `/var/lib/wanderwall/state.yaml`.** `state.yaml`'s lock file
+  (`state.lock`) is root-owned, mode 644 (checked on tkframe 2026-11-06), so the app user can't take the lock that
+  `state_manager.py` uses. `engine.yaml` belongs to the frame user and also holds the last result for the Updates card.
+- **Postponed when no screen is on**, including display sleep (`wlr-randr` shows every output off): the engine can't
+  start without a screen (PL-187), so the 90 s check would always fail and roll back. Result `postponed`; it runs with
+  the next app update or the Upgrade button. So **kframe's 03:30 monthly auto-apply (it sleeps 22:00–07:00) will
+  postpone the engine upgrade**; kframe's upgrade (step 5) comes from the Upgrade button instead.
+- **`-r2`, `-r3` folder suffix** when the pin changes only a dependency (same picframe version): the new engine can't
+  be built into the folder the running engine uses.
+- **Engines already at the pin aren't converted** (tkframe, bfframe today): their real `~/venv_picframe` stays until
+  a pin change needs an upgrade.
+- **The launcher takes effect at the next display restart**; `update_app.sh` doesn't restart the display for it.
+- **Self-repair skips** while no screen is on or the display is asleep, while `picframe.service` is inactive (systemd
+  handles that) or started under 2 minutes ago, and while an engine update holds `~/.wanderwall/engine.lock`.
+
+**KP-016 (config keys, checked 2026-11-06):** kframe's `configuration.yaml` (written by 2024.11.1) against
+2026.4.22's `model.DEFAULT_CONFIG` (read from tkframe's engine):
+- 2026.4.22 defaults that kframe lacks: `viewer.display_hdmi`, `viewer.test_key`, `viewer.text_x_margin`,
+  `viewer.text_y_margin`, `viewer.video_fit_display`. Picframe fills them from its defaults.
+- kframe keys not in the defaults: `http.auth`, `http.username`, `http.password` (2026.4.22 still reads them,
+  `model.py:228`; kframe has `auth: false`) and `http.host: 127.0.0.1`, which neither engine uses: both bind
+  `0.0.0.0:9000` (`interface_http.py:254`; `ss -ltn` on kframe and tkframe). Nothing renamed; no config change needed.
+- Side finding, not caused by the upgrade: the engine's HTTP API on :9000 has no auth and answers from the LAN and the
+  tailnet on every frame (tkframe answered the PC over Tailscale with 200, 2026-11-06).
 
 ## Rollout
 
 | Step | Frame | What | Gate |
 |---|---|---|---|
 | 1 | `pf_pi_sim` | Part B tests (bookworm, 3.11) | — |
-| 2 | bfframe | Parts A and B on `dev`, tests above (moved to `dev` 2026-11-04 for the Apple review) | Matt moves it (`update_app.sh --branch=dev`) |
-| 3 | bfframe | Back to `main` before it ships (`update_app.sh --branch=main`); engine already at the pin | Matt |
-| — | tkframe | Untouched until approval (review demo frame on `main`); afterwards back to `dev` | approval |
-| 4 | — | Tag `v5.0.X`, merge `dev` → `main`; not before the Apple review is done (`main` frozen) | **Matt's explicit OK** |
-| 5 | kframe | First real bookworm engine upgrade; at home, so a screen and keyboard are at hand if needed. Monthly auto-update (Dec 2, 03:30) or Update button | **Matt's OK** for any manual update |
+| 2 | tkframe | Part B tests above on `dev` (PL-188). Part A was checked on bfframe (KP-021) before it went back to `main` on 2026-11-06 | Matt runs anything on the frame |
+| 3 | bfframe | On `main` since 2026-11-06 (KP-025); gets Parts A and B with step 4; engine already at the pin | — |
+| 4 | — | Tag `v5.0.X`, merge `dev` → `main` (the Apple review is over: app approved 2026-11-05) | **Matt's explicit OK** |
+| 5 | kframe | First real bookworm engine upgrade; at home, so a screen and keyboard are at hand if needed. The Dec 2 03:30 auto-update brings the code, but the engine upgrade postpones while the display sleeps; it runs from the Upgrade button | **Matt's OK** for any manual update |
 | 6 | mnbframe | **Two steps** (Matt, 2026-11-03), see below | **Matt's OK** for each step |
 
 **mnbframe (remote, v4):**
