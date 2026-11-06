@@ -127,3 +127,18 @@ koofr:KFR_frame: 5" (one recount, on the lights' next poll), status match 5/5. C
 aren't seen until the next sync, by design.
 Found: the cache keeps a non-album path (`koofr:.picframe/frames/<serial>.yaml`, the frame registry upload) in
 `pending` for good; harmless for counts, fix planned (look up the album in `source_manager`, drop `pending`).
+
+### 2026-11-06, kframe, Parts A and B on `main` v5.0.357 (KP-026)
+
+Matt pressed Update 13:31; engine upgraded 2024.11.1 → 2026.4.22 at 13:32:08. One-hour windows, taken 14:35:48 MST,
+client 192.168.102.200, same figures on both Pi-holes:
+
+| Domain | Before (12:30–13:30) | After (13:35–14:35) |
+|---|---|---|
+| `app.koofr.net` | 1,210 | **16** |
+| `nominatim.openstreetmap.org` (all refused, 403) | 48 | **0** |
+| All | 1,258 | **16** |
+
+On the frame (read-only): 0 `GeoReverse` lines from the engine since 13:32:08 (22 from the old engine in the hour
+before); 0 `rclone size` starts in 60 s at 14:36; 4 syncs completed since 13:35; display watch `ok` × 62.
+As on bfframe: 16 = 4 syncs × 2 rclone runs × A + AAAA.
