@@ -1,17 +1,17 @@
 # Display engine (upstream picframe) pin, KP-010.
+# TEMPORARY TEST PIN (PL-188, 2026-11-06): kframe's engine set (picframe 2024.11.1) so tkframe, the
+# only frame on dev, swaps its engine down for real. Restored to 2026.4.22 before any merge to main.
 # update_engine.sh builds ~/venv_picframe-<picframe version> from this file; install.sh uses it
 # for new frames. Raising the pin is an ordinary release: dev -> the dev test frame -> tag -> main.
-# Versions taken from tkframe's working engine (pip freeze, 2026-11-06). Every package has
-# Python 3.11 and 3.13 aarch64 wheels on PyPI (bookworm and trixie frames).
-picframe==2026.4.22
 defusedxml==0.7.1
-IPTCInfo3==2.3.0
+IPTCInfo3==2.1.4
 ninepatch==0.2.0
-numpy==2.4.4
+numpy==2.1.2
 paho-mqtt==2.1.0
-pi3d==2.55
-pi_heif==1.3.0
-pillow==12.2.0
-PySDL2==0.9.17
-python-vlc==3.0.21203
-PyYAML==6.0.3
+pi3d==2.52
+pi_heif==0.20.0
+picframe==2024.11.1
+pillow==12.1.0
+pillow_heif==1.1.1
+PySDL2==0.9.16
+PyYAML==6.0.2
