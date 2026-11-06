@@ -1,0 +1,43 @@
+#!/bin/bash
+# Stand-in for "systemctl --user" in the simulator (KP-020). update_engine.sh calls it via
+# WW_SYSTEMCTL. picframe.service = the stand-in engine (standin_engine.py) run with
+# ~/venv_picframe/bin/python, so a restart picks up whatever the symlink points at.
+set -uo pipefail
+
+PIDFILE="$HOME/.sim/picframe.pid"
+LOG="$HOME/.sim/picframe.log"
+mkdir -p "$HOME/.sim"
+echo "$(date +'%H:%M:%S') systemctl $*" >> "$HOME/.sim/systemctl.log"
+
+running() { [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+
+stop_engine() {
+    if running; then
+        kill "$(cat "$PIDFILE")" 2>/dev/null || true
+        for _ in $(seq 1 20); do running || break; sleep 0.5; done
+    fi
+    rm -f "$PIDFILE"
+}
+
+start_engine() {
+    # Like labwc + the launcher: the unit stays "active" even if the engine dies at once.
+    # Keeps inherited descriptors on purpose: update_engine.sh must close its lock (fd 9) itself.
+    nohup "$HOME/venv_picframe/bin/python" /sim/standin_engine.py >> "$LOG" 2>&1 &
+    echo $! > "$PIDFILE"
+    touch "$HOME/.sim/unit-active"
+}
+
+args=("$@")
+[[ "${args[0]:-}" == "--user" ]] && args=("${args[@]:1}")
+cmd="${args[0]:-}"
+unit=""
+for a in "${args[@]:1}"; do [[ "$a" == --* ]] || unit="$a"; done
+[[ "$unit" == "picframe.service" ]] || { echo "sim systemctl: unexpected unit '$unit' ($*)" >&2; exit 1; }
+
+case "$cmd" in
+    is-active) [[ -f "$HOME/.sim/unit-active" ]] ;;
+    stop)      stop_engine; rm -f "$HOME/.sim/unit-active" ;;
+    start)     running || start_engine ;;
+    restart)   stop_engine; start_engine ;;
+    *) echo "sim systemctl: unexpected command '$cmd'" >&2; exit 1 ;;
+esac

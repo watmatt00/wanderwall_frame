@@ -1,0 +1,15 @@
+# Simulator for the display engine updater (KP-020): Raspberry Pi OS bookworm stand-in.
+# arm64 Debian bookworm with Python 3.11.2, the same OS and Python as kframe and mnbframe,
+# and the system libraries the engine loads (checked on kframe 2026-11-06: libsdl2-2.0-0,
+# libgles2, libegl1, python3-venv). Run under qemu-user (podman --platform linux/arm64).
+FROM docker.io/library/debian:bookworm-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        python3 python3-venv python3-pip ca-certificates curl procps util-linux \
+        libsdl2-2.0-0 libgles2 libegl1 \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd -m -s /bin/bash pi
+
+USER pi
+WORKDIR /home/pi

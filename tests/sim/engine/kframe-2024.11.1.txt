@@ -1,0 +1,13 @@
+# kframe's engine (pip freeze, 2026-11-06), used to build the simulator's "before" engine
+defusedxml==0.7.1
+IPTCInfo3==2.1.4
+ninepatch==0.2.0
+numpy==2.1.2
+paho-mqtt==2.1.0
+pi3d==2.52
+pi_heif==0.20.0
+picframe==2024.11.1
+pillow==12.1.0
+pillow_heif==1.1.1
+PySDL2==0.9.16
+PyYAML==6.0.2

@@ -118,7 +118,7 @@ healthy() {
     # Polls until the service is active and the engine's HTTP API answers, or the timeout.
     local waited=0
     while (( waited < HEALTH_TIMEOUT )); do
-        if "${SYSTEMCTL[@]}" is-active --quiet "$SERVICE" 2>/dev/null \
+        if "${SYSTEMCTL[@]}" is-active --quiet "$SERVICE" 2>/dev/null 9>&- \
            && curl -sf -o /dev/null --max-time 3 "$HEALTH_URL" 2>/dev/null; then
             return 0
         fi
@@ -134,8 +134,9 @@ point_link() {
     mv -T "$LINK.tmp" "$LINK"
 }
 
+# Every systemctl call closes the lock (fd 9): nothing it starts may inherit and hold it.
 restart_engine() {
-    "${SYSTEMCTL[@]}" restart "$SERVICE"
+    "${SYSTEMCTL[@]}" restart "$SERVICE" 9>&-
 }
 
 # Rewrites absolute paths of a renamed venv: bin/ shebangs, activate scripts, pyvenv.cfg.
@@ -258,7 +259,7 @@ if [[ -d "$LINK" && ! -L "$LINK" ]]; then
         exit 1
     fi
     # Stop the engine while its folder moves, so it can't load a module from a moving path.
-    "${SYSTEMCTL[@]}" stop "$SERVICE" || true
+    "${SYSTEMCTL[@]}" stop "$SERVICE" 9>&- || true
     mv -T "$LINK" "$OLD_VENV"
     rewrite_venv_paths "$OLD_VENV" "$LINK"
     point_link "$OLD_VENV"
