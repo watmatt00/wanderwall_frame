@@ -15,7 +15,8 @@ PROFILE="${1:?usage: scenario.sh <profile>}"
 [[ "$PROFILE" =~ ^[a-z]+-[0-9.]+$ && -f "/sim/$PROFILE.txt" ]] || { echo "unknown profile: $PROFILE" >&2; exit 2; }
 OLD="${PROFILE#*-}"
 UPDATE_ENGINE=/repo/scripts/setup/update_engine.sh
-PIN_FILE=/repo/scripts/setup/picframe-requirements.txt
+# SIM_PIN_FILE: test another pin than the repo's (run_sim.sh SIM_PIN=<file>)
+PIN_FILE="${SIM_PIN_FILE:-/repo/scripts/setup/picframe-requirements.txt}"
 NEW="$(sed -nE 's/^picframe==([0-9.]+).*/\1/p' "$PIN_FILE")"
 LINK="$HOME/venv_picframe"
 STATE="$HOME/.wanderwall/engine.yaml"
@@ -33,7 +34,7 @@ answers_with() { answer | grep -qF "picframe $1 from $2"; }
 
 mkdir -p "$HOME/.sim/drm/card1-HDMI-A-1" "$HOME/.wanderwall/logs"
 echo connected > "$HOME/.sim/drm/card1-HDMI-A-1/status"
-export WW_SYSTEMCTL=/sim/systemctl WW_DRM_DIR="$HOME/.sim/drm" WW_WLR_RANDR=/nonexistent
+export WW_SYSTEMCTL=/sim/systemctl WW_DRM_DIR="$HOME/.sim/drm" WW_WLR_RANDR=/nonexistent WW_REQUIREMENTS="$PIN_FILE"
 
 run_update() {
     # run_update <label> [extra env...]; sets RC
