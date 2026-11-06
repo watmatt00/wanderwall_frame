@@ -21,10 +21,10 @@ Cloud (Koofr) ──────────────────────
 
 | Device | IP (LAN) | IP (VPN) | Dashboard URL | User | Branch | Notes |
 |--------|----------|----------|---------------|------|--------|-------|
-| **tkframe** | 192.168.102.210 | 100.100.168.66 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `main` | **Apple review demo frame** since 2026-10-26 (RB-07; v5.0.330, demo mode on). Don't move, update or test on it until the app is approved; then it goes back to being the `dev` test frame |
+| **tkframe** | 192.168.102.210 | 100.100.168.66 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `dev` | **`dev` test frame**. Back on `dev` 2026-11-06 after Apple approved the app (was the review demo frame on `main` 2026-10-26 → 11-06, RB-07; demo mode off) |
 | **kframe** | 192.168.102.200 | 100.69.17.26 | `http://kframe.whale-ayu.ts.net:8000` | pi | `main` | Home frame (production) |
 | **mnbframe** | 192.168.1.154 | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
-| **bfframe** | 192.168.102.215 (home, until shipped) | — | `http://bfframe.whale-ayu.ts.net:8000` | pi | `dev` | Pi 5, being built for Burke and Fafa, then remote (production). **`dev` test frame during the Apple review** (Matt, 2026-11-04); back to `main` before it ships. `docs/BUILD_bfframe.md` |
+| **bfframe** | 192.168.102.215 (home, until shipped) | — | `http://bfframe.whale-ayu.ts.net:8000` | pi | `main` | Pi 5, for Burke and Fafa, then remote (production). On `main` since 2026-11-06 (was the `dev` test frame during the Apple review). `docs/BUILD_bfframe.md` |
 | **fuckms** | 192.168.102.100 | 100.82.140.119 | — | matt | — | Main PC (dev) |
 
 Dashboard URLs require Tailscale connected (MagicDNS on tailnet `whale-ayu.ts.net`). LAN IPs also work directly on port 8000.
@@ -55,18 +55,17 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 ## Deployment Workflow
 
 ### Branch Policy
-- `dev` — all active development. The `dev` test frame tracks this: **bfframe** during the Apple review, normally tkframe.
-- `main` — production. kframe, mnbframe and (during the review) tkframe, the demo frame, track this. **Only receives tagged merges from `dev`.**
+- `dev` — all active development. The `dev` test frame (tkframe) tracks this.
+- `main` — production. kframe, mnbframe and bfframe track this. **Only receives tagged merges from `dev`.**
 - Tag format: `v4.0.X` where X matches the commit count shown in the dashboard (e.g. `v4.0.52`).
 - The dashboard Updates card shows each frame's active branch (DEV/MAIN badge).
 
 ### Dev Branch (daily work → the `dev` test frame)
-During the Apple review the `dev` test frame is **bfframe** (192.168.102.215); afterwards tkframe (192.168.102.210) again.
 1. Work on `dev` branch on PC
 2. `git add && git commit && git push origin dev`
-3. Update the test frame: Update button in its dashboard (git pull + `update_app.sh`), or Matt runs `ssh pi@192.168.102.215 "cd ~/wanderwall_frame && git pull && bash scripts/update_app.sh"`
-4. Restart API: `ssh pi@192.168.102.215 "systemctl --user restart wanderwall-api"`
-5. Test dashboard: `http://192.168.102.215:8000`
+3. Update the test frame: Update button in its dashboard (git pull + `update_app.sh`), or Matt runs `ssh pi@192.168.102.210 "cd ~/wanderwall_frame && git pull && bash scripts/update_app.sh"`
+4. Restart API: `ssh pi@192.168.102.210 "systemctl --user restart wanderwall-api"`
+5. Test dashboard: `http://192.168.102.210:8000`
 
 ### Promoting dev → main (kframe, mnbframe)
 1. Tag the commit: `git tag v4.0.X && git push origin v4.0.X`
@@ -81,8 +80,8 @@ During the Apple review the `dev` test frame is **bfframe** (192.168.102.215); a
 ```bash
 ssh pi@<frame> "bash ~/wanderwall_frame/scripts/update_app.sh --branch=dev"   # or --branch=main
 ```
-Matt runs it (Pi frames are read-only for Claude). bfframe moved to `dev` for the Apple review (2026-11-04) and goes
-back with `--branch=main` before it ships; tkframe moved to `main` 2026-10-26 and goes back to `dev` after approval.
+Matt runs it (Pi frames are read-only for Claude). During the Apple review (2026-10-26 → 11-06) tkframe was the demo
+frame on `main` and bfframe the `dev` test frame; both moved back on 2026-11-06.
 
 User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wanderwall-sync.timer`, `wanderwall-lights` (indicator lights overlay), `picframe` (the upstream display engine)
 
@@ -129,7 +128,7 @@ Two iOS apps: WanderWall – Photo Frame (Manager, admin) and WanderWall Share (
 | `wanderwall_frame` (this) | Pi backend + dashboard | Defines API | `~/Downloads/GitHub/wanderwall_frame` |
 | `wanderwall_app` | Mobile apps (iOS only) | Consumes API | `~/Downloads/GitHub/wanderwall_app` |
 
-Known issues and parking lot for BOTH repos: `wanderwall_app/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`), shown at http://utility.home:8765/ (ticks go to `wanderwall_app` `dev` during the Apple review). The Apple runbook is `wanderwall_app/docs/RUNBOOK_apple.md` (archived after approval). Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
+Known issues and parking lot for BOTH repos: `wanderwall_app/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`), shown at http://utility.home:8765/ (ticks go to `wanderwall_app` `dev`). The Apple submission runbook is archived at `wanderwall_app/docs/archive/RUNBOOK_apple.md` (2026-11-06); its open items are PL-184…186. Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
 Phase 4, 5 & 6 plan in `docs/PHASE_4_5_PLAN.md` is historical (all built). Next steps come from the parking lot.
 Test plan in `docs/TEST_PLAN.md` - covers backend, dashboard, and iOS app. Test runs stored in `docs/test_runs/`.
 Phase 6 setup guide in `docs/PI_SETUP.md` — includes WiFi recovery usage guide and troubleshooting.
