@@ -1,0 +1,75 @@
+[2026-11-06 12:58:18] Building localhost/wanderwall-engine-sim:bookworm (linux/arm64)
+[2026-11-06 12:58:19] Testing pin /tmp/claude-1000/-home-matt-Downloads-GitHub-wanderwall-frame/ae864b59-881e-4156-b6ed-fa0b79de8c57/scratchpad/pin-2026.4.22.txt
+[2026-11-06 12:58:19] Profile mnbframe-2024.9.24: starting container
+[19:58:20] Profile mnbframe-2024.9.24: build today's engine (2024.9.24) as a real folder
+  DEPRECATION: PySDL2 is being installed using the legacy 'setup.py install' method, because it does not have a 'pyproject.toml' and the 'wheel' package is not installed. pip 23.1 will enforce this behaviour change. A possible replacement is to enable the '--use-pep517' option. Discussion can be found at https://github.com/pypa/pip/issues/8559
+[20:01:32]    built in 192s; #!/home/pi/venv_picframe/bin/python
+[20:01:38] PASS  starting engine 2024.9.24 answers on :9000
+[20:01:38] ── update_engine.sh: 1. hold flag set
+        [2026-11-06 20:01:46] Display engine upgrade on hold (2024.9.24 installed, pin 2026.4.22); press Upgrade on the Updates card
+[20:01:46]    exit 0 after 8s; result 'on_hold'
+[20:01:46] PASS  1. exit 0
+[20:01:46] PASS  1. result on_hold
+[20:01:46] PASS  1. ~/venv_picframe still a real folder
+[20:01:46] PASS  1. no build folder for 2026.4.22
+[20:01:47] PASS  1. old engine still answering
+[20:01:47] PASS  1. hold flag kept
+[20:01:47] ── update_engine.sh: 2. forced failure of 2026.4.22
+        [2026-11-06 20:01:56] Display engine upgrade starting: 2024.9.24 -> 2026.4.22
+        [2026-11-06 20:05:22] Built display engine 2026.4.22 in /home/pi/venv_picframe-2026.4.22 (smoke test passed)
+        [2026-11-06 20:05:25] Converted /home/pi/venv_picframe to a symlink -> /home/pi/venv_picframe-2024.9.24 (first run)
+        [2026-11-06 20:07:06] ERROR: Failed health check of display engine 2026.4.22 (service active + http://localhost:9000/ within 90s); rolling back
+        [2026-11-06 20:07:13] Rolled back to display engine 2024.9.24; it answers again
+[20:07:14]    exit 1 after 327s; result 'rolled_back'
+[20:07:14] PASS  2. exit 1
+[20:07:14] PASS  2. result rolled_back
+[20:07:14] PASS  2. link now points at /home/pi/venv_picframe-2024.9.24
+[20:07:14] PASS  2. failed 2026.4.22 folder removed
+[20:07:14] PASS  2. old engine's shebangs name its new folder
+[20:07:15] PASS  2. old engine's activate names its new folder
+[20:07:15] PASS  2. old engine answers again, from its renamed folder
+pip 23.0.1 from /home/pi/venv_picframe-2024.9.24/lib/python3.11/site-packages/pip (python 3.11)
+[20:07:20] PASS  2. renamed old engine's pip still runs
+[20:07:20] ── update_engine.sh: 3. upgrade to 2026.4.22
+        [2026-11-06 20:07:29] Display engine upgrade starting: 2024.9.24 -> 2026.4.22
+        [2026-11-06 20:10:53] Built display engine 2026.4.22 in /home/pi/venv_picframe-2026.4.22 (smoke test passed)
+        [2026-11-06 20:11:01] Display engine upgraded successfully: 2024.9.24 -> 2026.4.22
+[20:11:02]    exit 0 after 222s; result 'ok'
+[20:11:02] PASS  3. exit 0
+[20:11:02] PASS  3. result ok
+[20:11:02] PASS  3. installed_version 2026.4.22, previous 2024.9.24
+[20:11:02] PASS  3. link points at /home/pi/venv_picframe-2026.4.22
+[20:11:02] PASS  3. new engine answers
+[20:11:02] PASS  3. previous engine kept for rollback
+[20:11:09] PASS  3. new engine's packages match the pin
+[20:11:09] ── update_engine.sh: 4. second run
+        [2026-11-06 20:11:17] Display engine 2026.4.22 matches the pin; nothing to do
+[20:11:17]    exit 0 after 8s; result 'up_to_date'
+[20:11:17] PASS  4. exit 0
+[20:11:17] PASS  4. result up_to_date
+[20:11:17] PASS  4. no systemctl call
+[20:11:18] PASS  4. new engine still answering
+[20:11:18] ── update_engine.sh: 5. bad pin (picframe==2099.1.1)
+        [2026-11-06 20:11:26] Display engine upgrade starting: 2026.4.22 -> 2099.1.1
+        [2026-11-06 20:12:48] ERROR: Failed to build display engine 2099.1.1 (pip output: /home/pi/.wanderwall/logs/engine-build.log); 2026.4.22 kept
+[20:12:48]    exit 1 after 90s; result 'failed'
+[20:12:48] PASS  5. exit 1
+[20:12:48] PASS  5. result failed
+[20:12:48] PASS  5. link unchanged
+[20:12:48] PASS  5. no 2099.1.1 folder left
+[20:12:49] PASS  5. engine still answering
+[20:12:49] ── wanderwall.log ([update_engine] lines)
+        2026-11-06 20:01:46 INFO  [update_engine] Display engine upgrade on hold (2024.9.24 installed, pin 2026.4.22); press Upgrade on the Updates card
+        2026-11-06 20:01:56 INFO  [update_engine] Display engine upgrade starting: 2024.9.24 -> 2026.4.22
+        2026-11-06 20:05:22 INFO  [update_engine] Built display engine 2026.4.22 in /home/pi/venv_picframe-2026.4.22 (smoke test passed)
+        2026-11-06 20:05:25 INFO  [update_engine] Converted /home/pi/venv_picframe to a symlink -> /home/pi/venv_picframe-2024.9.24 (first run)
+        2026-11-06 20:07:06 ERROR [update_engine] Failed health check of display engine 2026.4.22 (service active + http://localhost:9000/ within 90s); rolling back
+        2026-11-06 20:07:13 INFO  [update_engine] Rolled back to display engine 2024.9.24; it answers again
+        2026-11-06 20:07:29 INFO  [update_engine] Display engine upgrade starting: 2024.9.24 -> 2026.4.22
+        2026-11-06 20:10:53 INFO  [update_engine] Built display engine 2026.4.22 in /home/pi/venv_picframe-2026.4.22 (smoke test passed)
+        2026-11-06 20:11:01 INFO  [update_engine] Display engine upgraded successfully: 2024.9.24 -> 2026.4.22
+        2026-11-06 20:11:17 INFO  [update_engine] Display engine 2026.4.22 matches the pin; nothing to do
+        2026-11-06 20:11:26 INFO  [update_engine] Display engine upgrade starting: 2026.4.22 -> 2099.1.1
+        2026-11-06 20:12:48 ERROR [update_engine] Failed to build display engine 2099.1.1 (pip output: /home/pi/.wanderwall/logs/engine-build.log); 2026.4.22 kept
+[20:12:49] RESULT mnbframe-2024.9.24: all checks passed
+[2026-11-06 13:12:49] Profile mnbframe-2024.9.24: passed
