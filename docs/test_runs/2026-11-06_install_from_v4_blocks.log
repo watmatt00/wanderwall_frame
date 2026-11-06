@@ -1,0 +1,81 @@
+── block A (4 lines)
+        | # Branch name goes into git commands and the engine pin URL: allow only a plain ref name.
+        | if [[ ! "$BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+        |     log "ERROR: invalid branch name: $BRANCH"; exit 1
+        | fi
+── block B (8 lines)
+        |     ENGINE_STATE="$ACTUAL_HOME/.wanderwall/engine.yaml"
+        |     if [[ ! -f "$ENGINE_STATE" ]]; then
+        |         printf '%s\n' "# Written by install.sh --from-v4; the Updates card's Upgrade button clears the hold" \
+        |             "upgrade: hold" > "$ENGINE_STATE"
+        |         chown "$ACTUAL_USER:$ACTUAL_USER" "$ENGINE_STATE"
+        |         chmod 600 "$ENGINE_STATE"
+        |         log "  Display engine kept; its upgrade is on hold (Updates card → Upgrade)"
+        |     fi
+── block C (11 lines)
+        |     as_user mkdir -p "$ACTUAL_HOME/.config/systemd/user"
+        |     for svc in wanderwall-api.service wanderwall-sync.service wanderwall-sync.timer wanderwall-lights.service \
+        |                wanderwall-display-watch.service wanderwall-display-watch.timer; do
+        |         if [[ -f "$PROJECT_DIR/systemd/$svc" ]]; then
+        |             cp "$PROJECT_DIR/systemd/$svc" "$ACTUAL_HOME/.config/systemd/user/"
+        |             chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.config/systemd/user/$svc"
+        |             log "  Installed $svc"
+        |         else
+        |             log "  WARNING: $svc not found in $PROJECT_DIR/systemd/ — skipping"
+        |         fi
+        |     done
+── block D (3 lines)
+        |     # --from-v4 skips Phase 8: point its start_picframe.sh at the launcher here (idempotent)
+        |     (cd /tmp && as_user env HOME="$ACTUAL_HOME" bash "$PROJECT_DIR/scripts/display/install_launcher.sh") \
+        |         || log "  WARNING: display launcher not installed (see above)"
+PASS  A. branch 'main' accepted
+PASS  A. branch 'dev' accepted
+PASS  A. branch 'v5' accepted
+PASS  A. branch 'feature/x' accepted
+PASS  A. branch 'release-5.0' accepted
+PASS  A. branch 'main;touch /tmp/pwned' refused (exit 1)
+PASS  A. branch '../x' refused (exit 1)
+PASS  A. branch '-x' refused (exit 1)
+PASS  A. branch 'a b' refused (exit 1)
+PASS  A. branch '$(id)' refused (exit 1)
+PASS  A. branch '' refused (exit 1)
+PASS  A. nothing ran from a branch name
+── building mnbframe's engine (2024.9.24) as pi
+  DEPRECATION: PySDL2 is being installed using the legacy 'setup.py install' method, because it does not have a 'pyproject.toml' and the 'wheel' package is not installed. pip 23.1 will enforce this behaviour change. A possible replacement is to enable the '--use-pep517' option. Discussion can be found at https://github.com/pypa/pip/issues/8559
+        [install.sh]   Display engine kept; its upgrade is on hold (Updates card → Upgrade)
+PASS  B. block exits 0
+PASS  B. engine.yaml written
+PASS  B. contains 'upgrade: hold'
+PASS  B. owned by pi
+PASS  B. mode 600
+PASS  B. logs the hold
+PASS  B. second run changes nothing
+PASS  B. second run logs nothing
+PASS  B. the app's YAML reader sees on_hold
+        [install.sh]   Installed wanderwall-api.service
+        [install.sh]   Installed wanderwall-sync.service
+        [install.sh]   Installed wanderwall-sync.timer
+        [install.sh]   Installed wanderwall-lights.service
+        [install.sh]   Installed wanderwall-display-watch.service
+        [install.sh]   Installed wanderwall-display-watch.timer
+PASS  C. block exits 0
+PASS  C. wanderwall-api.service copied, owned by pi
+PASS  C. wanderwall-sync.service copied, owned by pi
+PASS  C. wanderwall-sync.timer copied, owned by pi
+PASS  C. wanderwall-lights.service copied, owned by pi
+PASS  C. wanderwall-display-watch.service copied, owned by pi
+PASS  C. wanderwall-display-watch.timer copied, owned by pi
+PASS  C. no 'not found' warning
+[2026-11-06 20:48:59] Display launcher installed: /home/pi/start_picframe.sh -> /repo/scripts/display/start_picframe.sh (applies at the next display restart)
+PASS  D. block exits 0
+PASS  D. start_picframe.sh now runs the repo launcher
+PASS  D. original kept as .pre-launcher
+PASS  D. start_picframe.sh owned by pi, executable
+PASS  D. no warning
+        [2026-11-06 20:49:07] Display engine upgrade on hold (2024.9.24 installed, pin 2026.4.22); press Upgrade on the Updates card
+PASS  E. update_engine.sh exits 0
+PASS  E. upgrade on hold
+PASS  E. engine folder untouched (still a real folder)
+PASS  E. hold still set
+PASS  E. engine.yaml still owned by pi, mode 600
+RESULT from-v4 blocks: all checks passed
