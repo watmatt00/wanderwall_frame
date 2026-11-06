@@ -67,7 +67,7 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 4. Restart API: `ssh pi@192.168.102.210 "systemctl --user restart wanderwall-api"`
 5. Test dashboard: `http://192.168.102.210:8000`
 
-### Promoting dev → main (kframe, mnbframe)
+### Promoting dev → main (kframe, mnbframe, bfframe)
 1. Tag the commit: `git tag v4.0.X && git push origin v4.0.X`
 2. Merge to main: `git checkout main && git merge dev && git push origin main`
 3. Prod frames pull on next scheduled check, or manually:
