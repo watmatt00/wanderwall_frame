@@ -23,7 +23,7 @@ Cloud (Koofr) ──────────────────────
 |--------|----------|----------|---------------|------|--------|-------|
 | **tkframe** | 192.168.102.210 | 100.100.168.66 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `dev` | **`dev` test frame**. Back on `dev` 2026-11-06 after Apple approved the app (was the review demo frame on `main` 2026-10-26 → 11-06, RB-07; demo mode off) |
 | **kframe** | 192.168.102.200 | 100.69.17.26 | `http://kframe.whale-ayu.ts.net:8000` | pi | `main` | Home frame (production) |
-| **mnbframe** | 192.168.1.154 | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
+| **mnbframe** | 192.168.1.208 (DHCP on the remote router, can change; 2026-11-07) | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
 | **bfframe** | 192.168.102.215 (home, until shipped) | — | `http://bfframe.whale-ayu.ts.net:8000` | pi | `main` | Pi 5, for Burke and Fafa, then remote (production). On `main` since 2026-11-06 (was the `dev` test frame during the Apple review). `docs/BUILD_bfframe.md` |
 | **fuckms** | 192.168.102.100 | 100.82.140.119 | — | matt | — | Main PC (dev) |
 
