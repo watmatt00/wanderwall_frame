@@ -1775,15 +1775,25 @@ function renderEngineStatus(e) {
 
     installedEl.textContent = e.installed_version || 'unknown';
     if (pinnedEl) {
-        pinnedEl.textContent = (e.pinned_version && !e.matches_pin) ? '(pinned: ' + e.pinned_version + ')' : '';
+        // Same picframe version but other packages differ from the pin: say so, or the row
+        // reads "2026.4.22 (pinned: 2026.4.22)".
+        let pinText = '';
+        if (e.pinned_version && !e.matches_pin) {
+            pinText = e.installed_version === e.pinned_version
+                ? '(other packages differ from the pin)'
+                : '(pinned: ' + e.pinned_version + ')';
+        }
+        pinnedEl.textContent = pinText;
     }
 
+    // A postponed result is stale once the engine matches the pin (e.g. set by hand).
+    const staleResult = e.matches_pin && e.last_result === 'postponed';
     statusEl.replaceChildren();
     if (e.running) {
         statusEl.appendChild(_engineSpan('Upgrading… the display restarts once', '#60a5fa'));
     } else if (e.on_hold && !e.matches_pin) {
         statusEl.appendChild(_engineSpan('Upgrade on hold', '#f59e0b'));
-    } else if (e.last_result && ENGINE_RESULT_TEXT[e.last_result]) {
+    } else if (e.last_result && ENGINE_RESULT_TEXT[e.last_result] && !staleResult) {
         const [text, color] = ENGINE_RESULT_TEXT[e.last_result];
         statusEl.appendChild(_engineSpan(text, color));
     } else if (e.matches_pin) {

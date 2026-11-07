@@ -64,6 +64,65 @@ def test_clear_hold_without_file(home: Path) -> None:
     assert es.clear_hold() is False
 
 
+def test_pinned_packages_normalises_names(home: Path) -> None:
+    es.requirements_path().write_text(
+        "# pin\npicframe==2026.4.22\nPySDL2==0.9.17\npaho-mqtt==2.1.0  # mqtt\npi_heif==1.3.0\nnot a pin\n"
+    )
+    assert es.pinned_packages() == {
+        "picframe": "2026.4.22",
+        "pysdl2": "0.9.17",
+        "paho-mqtt": "2.1.0",
+        "pi-heif": "1.3.0",
+    }
+
+
+def test_engine_matches_pin_needs_every_package(home: Path) -> None:
+    """bfframe 2026-11-07: picframe at the pin, numpy newer: not a match (update_engine.sh agrees)."""
+    _engine(home, "2026.4.22")
+    assert es.engine_matches_pin() is True
+    site = home / "venv_picframe" / "lib" / "python3.11" / "site-packages"
+    (site / "numpy-2.4.4.dist-info").rmdir()
+    (site / "numpy-2.5.4.dist-info").mkdir()
+    assert es.engine_matches_pin() is False
+    (site / "numpy-2.5.4.dist-info").rmdir()
+    assert es.engine_matches_pin() is False   # a pinned package missing
+
+
+def test_engine_matches_pin_matches_wheel_folder_names(home: Path) -> None:
+    """dist-info names as pip writes them (paho_mqtt, PySDL2, pi_heif) match the pin's spelling."""
+    es.requirements_path().write_text("picframe==2026.4.22\npaho-mqtt==2.1.0\nPySDL2==0.9.17\npi_heif==1.3.0\n")
+    site = home / "venv_picframe" / "lib" / "python3.13" / "site-packages"
+    for name in ("picframe-2026.4.22", "paho_mqtt-2.1.0", "PySDL2-0.9.17", "pi_heif-1.3.0", "pip-26.2.2"):
+        (site / f"{name}.dist-info").mkdir(parents=True)
+    assert es.engine_matches_pin() is True
+
+
+def test_engine_matches_pin_without_pin_file(home: Path) -> None:
+    _engine(home, "2026.4.22")
+    es.requirements_path().unlink()
+    assert es.engine_matches_pin() is False
+
+
+@pytest.mark.asyncio
+async def test_status_same_picframe_other_packages_differ(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Upgrade button shows (matches_pin false) when only a dependency differs."""
+    _engine(home, "2026.4.22")
+    site = home / "venv_picframe" / "lib" / "python3.11" / "site-packages"
+    (site / "numpy-2.4.4.dist-info").rename(site / "numpy-2.5.4.dist-info")
+    es.engine_state_path().write_text("last_result: 'postponed'\n")
+
+    async def not_running() -> bool:
+        return False
+
+    monkeypatch.setattr(es, "upgrade_running", not_running)
+    status = await es.get_engine_status()
+    assert status["installed_version"] == status["pinned_version"] == "2026.4.22"
+    assert status["matches_pin"] is False
+    assert status["last_result"] == "postponed"
+
+
 @pytest.mark.asyncio
 async def test_status_on_hold_v4_frame(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _engine(home, "2024.9.24")

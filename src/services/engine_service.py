@@ -26,6 +26,10 @@ VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
 _DIST_INFO_RE = re.compile(r"^picframe-(\d+(?:\.\d+)*)\.dist-info$", re.IGNORECASE)
 _PIN_RE = re.compile(r"^picframe==(\d+(?:\.\d+)*)\s*$", re.IGNORECASE)
 _HOLD_RE = re.compile(r"""^upgrade:\s*['"]?hold['"]?\s*$""")
+# Any "<name>-<version>.dist-info" folder; the name part never holds a "-" (wheel naming).
+_ANY_DIST_INFO_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._]*)-([^-]+)\.dist-info$")
+# A "Name==1.0" requirements line, as update_engine.sh's normalise_reqs reads it.
+_REQ_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;#]+)")
 
 
 def engine_link() -> Path:
@@ -78,6 +82,66 @@ def installed_version(link: Path | None = None) -> str | None:
         except OSError:
             continue
     return None
+
+
+def _normalise_name(name: str) -> str:
+    """PEP 503 name: lower case, runs of '-', '_' and '.' become one '-'."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def pinned_packages(path: Path | None = None) -> dict[str, str]:
+    """
+    Read every "Name==version" line of the pin file.
+
+    Returns:
+        {normalised name: version}; empty when the file can't be read
+    """
+    path = path or requirements_path()
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return {}
+    packages: dict[str, str] = {}
+    for line in lines:
+        match = _REQ_RE.match(line.strip())
+        if match:
+            packages[_normalise_name(match.group(1))] = match.group(2)
+    return packages
+
+
+def installed_packages(link: Path | None = None) -> dict[str, str]:
+    """
+    Read the engine's installed packages from its dist-info folders (no subprocess).
+
+    Returns:
+        {normalised name: version}; empty when the engine isn't found
+    """
+    link = link or engine_link()
+    packages: dict[str, str] = {}
+    for site in sorted(link.glob("lib/python*/site-packages")):
+        try:
+            entries = list(site.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            match = _ANY_DIST_INFO_RE.match(entry.name)
+            if match:
+                packages[_normalise_name(match.group(1))] = match.group(2)
+    return packages
+
+
+def engine_matches_pin(link: Path | None = None, path: Path | None = None) -> bool:
+    """
+    True when every pinned package is installed at exactly the pinned version.
+
+    The same test as update_engine.sh's matches_pin (which compares pip freeze with the pin),
+    so the Updates card and the updater agree on whether an upgrade is due.
+    """
+    pinned = pinned_packages(path)
+    if not pinned:
+        return False
+    installed = installed_packages(link)
+    return all(installed.get(name) == version for name, version in pinned.items())
 
 
 def read_engine_state(path: Path | None = None) -> dict[str, Any]:
@@ -160,7 +224,7 @@ async def get_engine_status() -> dict[str, Any]:
     return {
         "installed_version": installed,
         "pinned_version": pinned,
-        "matches_pin": bool(installed and pinned and installed == pinned),
+        "matches_pin": bool(installed and pinned and installed == pinned and engine_matches_pin()),
         "on_hold": str(state.get("upgrade", "")).strip().lower() == "hold",
         "running": await upgrade_running(),
         "last_result": state.get("last_result") or None,
