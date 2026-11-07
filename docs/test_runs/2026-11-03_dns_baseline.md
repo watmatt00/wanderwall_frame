@@ -142,3 +142,38 @@ client 192.168.102.200, same figures on both Pi-holes:
 On the frame (read-only): 0 `GeoReverse` lines from the engine since 13:32:08 (22 from the old engine in the hour
 before); 0 `rclone size` starts in 60 s at 14:36; 4 syncs completed since 13:35; display watch `ok` × 62.
 As on bfframe: 16 = 4 syncs × 2 rclone runs × A + AAAA.
+
+### 2026-11-07, all three home frames (taken 10:42:54 MST, before bfframe's update)
+
+24 h window 2026-11-06 10:42 → 2026-11-07 10:42, plus hourly counts over 4 days. Raw output of both Pi-holes (same
+queries as "How to re-run" with client `.215` added, plus an `hourly` query):
+`docs/test_runs/2026-11-07_dns_pihole_raw.txt`.
+
+| Frame | Before | pihole1, 24 h | pihole2, 24 h | Steady rate now (pihole1) |
+|---|---|---|---|---|
+| kframe .200 | 26,023 / day | 3,908 | 3,868 | **16 / h** since 11-06 14:00 (~384 / day) |
+| tkframe .210 | 25,398 / day | 526 | 502 | **16 / h** since 11-06 14:00 (~384 / day) |
+| bfframe .215 | 1,180 / h (11-04) | 18,270 | 18,035 | **~720 / h** since 11-06 13:00 (~17,000 / day) |
+
+- kframe's 24 h total still includes the hours before its 11-06 13:32 update. `nominatim.openstreetmap.org`: 132,
+  all between 11-06 10:49:47 and 13:31:19, none since.
+- tkframe: apart from 16 / h of `app.koofr.net`, only one-off update traffic (github, piwheels, pypi, Tailscale).
+- **bfframe regressed when it moved to `main`.** pihole1 hourly: 16 / h through 11-06 09:00 (Part A on `dev`),
+  1,213 at 10:00, ~720 / h from 13:00 on, all `app.koofr.net`. On the frame (read-only, 10:44): branch `main`,
+  `git describe` = `v5.0.331`, which predates Part A (`abacb39` is in `v5.0.331..v5.0.357`); 6 `rclone size
+  koofr:KFR_frame --json` starts in 60 s, parent `python -m src.main`. Why it landed on `.331` was not checked.
+  Matt updated bfframe to current `main` after this reading. **Next:** re-run in a few days and compare bfframe with
+  this row (expected 16 / h, like the other two).
+
+pihole1 hourly, `app.koofr.net` + everything else, around the changes:
+
+| Hour (MST) | kframe | tkframe | bfframe |
+|---|---|---|---|
+| 11-06 08 | 1,262 | 1,208 | 16 |
+| 11-06 09 | 1,269 | 1,230 | 38 |
+| 11-06 10 | 1,260 | 84 | 1,213 |
+| 11-06 11 | 1,258 | 44 | 1,206 |
+| 11-06 12 | 1,248 | 46 | 1,101 |
+| 11-06 13 | 698 | 88 | 727 |
+| 11-06 14 | 16 | 16 | 725 |
+| 11-07 08 | 16 | 16 | 728 |
