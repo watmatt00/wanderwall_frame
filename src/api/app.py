@@ -30,6 +30,8 @@ from src.services.recovery_service import MAX_UPLOAD_BYTES as RECOVERY_MAX_UPLOA
 # Update service
 from src.services.update_service import start_update_scheduler
 from src.services import demo_service, frame_registry
+from src.services.systemd_service import reconcile_sleep_timers
+from src.config.settings import get_settings
 
 
 @asynccontextmanager
@@ -38,6 +40,10 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(start_update_scheduler())
     demo_service.expire_if_due()
     frame_registry.start()
+    display = get_settings().display
+    asyncio.create_task(
+        reconcile_sleep_timers(display.sleep_enabled, display.sleep_time, display.wake_time)
+    )
     yield
 
 

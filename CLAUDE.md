@@ -106,6 +106,7 @@ Tab order: **Frame Status | Albums | Tools | Backups | Settings** (the Albums bu
 - **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), Network sub-card (LAN IP + WiFi SSID, nested in Frame Settings), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh), software updates (check/apply, auto-check schedule, DEV/MAIN branch badge), Demo Mode card (only when `demo.allowed: true` is hand-set in config; reusable reviewer codes, 14-day expiry, revoke on end, amber banner on every tab — PL-015)
 
 ### Key Behaviors
+- **Display sleep schedule** (Settings → 🌙): saving writes `wanderwall-sleep/wake` user timers + `~/.local/bin/wanderwall-display` (wlr-randr off/on). At every API start `reconcile_sleep_timers()` rebuilds them from config when missing, different or not running, and turns them off when the schedule is off (PL-210: the v4 → v5 reinstall kept the setting but not the timers). Times are in the frame's time zone
 - Rotation interval changes write to `~/picframe_data/config/configuration.yaml` (model.time_delay) and auto-restart picframe service
 - Sync interval is stored in seconds but displayed as minutes in UI
 - `POST /sync` syncs the **active display source** (falls back to first enabled source if active has no remote)

@@ -182,6 +182,20 @@ WantedBy=timers.target
 """
 
 
+_SLEEP_TIMERS = ("wanderwall-sleep.timer", "wanderwall-wake.timer")
+
+
+def _sleep_files(sleep_time: str, wake_time: str) -> dict[Path, str]:
+    """Return every file the sleep schedule needs, mapped to its expected content."""
+    return {
+        _DISPLAY_HELPER_PATH: _DISPLAY_HELPER,
+        _SLEEP_TIMER_DIR / "wanderwall-sleep.service": _SLEEP_SERVICE,
+        _SLEEP_TIMER_DIR / "wanderwall-wake.service": _WAKE_SERVICE,
+        _SLEEP_TIMER_DIR / "wanderwall-sleep.timer": _SLEEP_TIMER_UNIT.format(time=sleep_time),
+        _SLEEP_TIMER_DIR / "wanderwall-wake.timer": _WAKE_TIMER_UNIT.format(time=wake_time),
+    }
+
+
 def _write_unit(path: Path, content: str) -> None:
     """Atomically write a systemd unit file."""
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -197,13 +211,8 @@ async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) ->
     sleep_time and wake_time must be "HH:MM" 24-hour format.
     Returns True on success.
     """
-    sleep_svc = _SLEEP_TIMER_DIR / "wanderwall-sleep.service"
-    wake_svc  = _SLEEP_TIMER_DIR / "wanderwall-wake.service"
-    sleep_tmr = _SLEEP_TIMER_DIR / "wanderwall-sleep.timer"
-    wake_tmr  = _SLEEP_TIMER_DIR / "wanderwall-wake.timer"
-
     if not enabled:
-        for unit in ("wanderwall-sleep.timer", "wanderwall-wake.timer"):
+        for unit in _SLEEP_TIMERS:
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "--user", "disable", "--now", unit,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -218,13 +227,10 @@ async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) ->
 
     try:
         _DISPLAY_HELPER_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _write_unit(_DISPLAY_HELPER_PATH, _DISPLAY_HELPER)
+        _SLEEP_TIMER_DIR.mkdir(parents=True, exist_ok=True)
+        for path, content in _sleep_files(sleep_time, wake_time).items():
+            _write_unit(path, content)
         _DISPLAY_HELPER_PATH.chmod(0o755)
-
-        _write_unit(sleep_svc, _SLEEP_SERVICE)
-        _write_unit(wake_svc,  _WAKE_SERVICE)
-        _write_unit(sleep_tmr, _SLEEP_TIMER_UNIT.format(time=sleep_time))
-        _write_unit(wake_tmr,  _WAKE_TIMER_UNIT.format(time=wake_time))
 
         proc = await asyncio.create_subprocess_exec(
             "systemctl", "--user", "daemon-reload",
@@ -235,7 +241,7 @@ async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) ->
             logger.error(f"daemon-reload failed: {stderr.decode()}")
             return False
 
-        for unit in ("wanderwall-sleep.timer", "wanderwall-wake.timer"):
+        for unit in _SLEEP_TIMERS:
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "--user", "enable", "--now", unit,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -251,6 +257,71 @@ async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) ->
     except Exception as e:
         logger.error(f"Failed to update sleep timers: {e}")
         return False
+
+
+async def _timer_state(unit: str) -> tuple[str, str]:
+    """Return (is-enabled, is-active) for a user unit, e.g. ("enabled", "active")."""
+    results = []
+    for verb in ("is-enabled", "is-active"):
+        proc = await asyncio.create_subprocess_exec(
+            "systemctl", "--user", verb, unit,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        results.append(stdout.decode().strip())
+    return results[0], results[1]
+
+
+async def reconcile_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) -> str:
+    """
+    Make the sleep/wake timers match the saved schedule (PL-210).
+
+    The timers are only written when the schedule is saved, so a reinstall (v4 -> v5) or a
+    lost file left frames with night mode on in config and nothing to run it. Run at API
+    startup: rebuilds the units when a file is missing or differs, or a timer isn't enabled
+    and running; turns the timers off when the schedule is off but they are still on.
+    Leaves a matching setup alone, so a normal start doesn't touch the timers.
+
+    Returns "ok", "repaired", "disabled" or "failed".
+    """
+    try:
+        if not enabled:
+            on = []
+            for unit in _SLEEP_TIMERS:
+                if not (_SLEEP_TIMER_DIR / unit).exists():
+                    continue
+                if (await _timer_state(unit))[0] == "enabled":
+                    on.append(unit)
+            if not on:
+                return "ok"
+            logger.info(
+                f"Sleep schedule is off but {', '.join(on)} still enabled; turning off (PL-210)"
+            )
+            await update_sleep_timers(False, sleep_time, wake_time)
+            return "disabled"
+
+        problems = []
+        for path, content in _sleep_files(sleep_time, wake_time).items():
+            if not path.is_file():
+                problems.append(f"{path.name} missing")
+            elif path.read_text() != content:
+                problems.append(f"{path.name} differs")
+        if not problems:
+            for unit in _SLEEP_TIMERS:
+                state = await _timer_state(unit)
+                if state != ("enabled", "active"):
+                    problems.append(f"{unit} {state[0]}/{state[1]}")
+        if not problems:
+            return "ok"
+
+        logger.info(
+            f"Sleep timers out of step with config ({'; '.join(problems)}); rebuilding (PL-210)"
+        )
+        return "repaired" if await update_sleep_timers(True, sleep_time, wake_time) else "failed"
+
+    except Exception as e:
+        logger.error(f"Failed to check sleep timers: {e}")
+        return "failed"
 
 
 class ServiceStatus(BaseModel):
