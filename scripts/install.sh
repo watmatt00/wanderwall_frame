@@ -52,11 +52,12 @@ if [[ ! -f "$CONFIG_DIR/config.yaml" ]]; then
 fi
 
 if [[ ! -f "$CONFIG_DIR/sources.yaml" ]]; then
-    cat > "$CONFIG_DIR/sources.yaml" << 'SOURCES_EOF'
+    # Full path, never "~" (PL-211): not every part of the API expands it
+    cat > "$CONFIG_DIR/sources.yaml" << SOURCES_EOF
 sources:
   - id: "local"
     name: "Local Photos"
-    local_path: "~/Pictures/local"
+    local_path: "$HOME/Pictures/local"
     rclone_remote: ""
     enabled: true
 SOURCES_EOF

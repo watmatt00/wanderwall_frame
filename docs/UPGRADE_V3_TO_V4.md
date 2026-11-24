@@ -137,8 +137,8 @@ cat ~/picframe_3.0/config/frame_sources.conf
 | Value | Setting |
 |-------|---------|
 | rclone remote | `kfr-mnbframe:` |
-| Primary source | `kfr-mnbframe:kfr_mnbframe` → `~/Pictures/kfr_mnbframe` |
-| Secondary source | `kfr-mnbframe:LVRK` → `~/Pictures/LVRK` |
+| Primary source | `kfr-mnbframe:kfr_mnbframe` → `/home/pi/Pictures/kfr_mnbframe` |
+| Secondary source | `kfr-mnbframe:LVRK` → `/home/pi/Pictures/LVRK` |
 | Rotation interval | 20 seconds (from `configuration.yaml` `time_delay`) |
 | Active source | `kfr_mnbframe` |
 
@@ -259,7 +259,7 @@ Validate the YAML before starting the API:
 
 **Step 4b — Write sources.yaml**
 
-Photo sources are stored in a **separate file** (`~/.picframe/sources.yaml`) — they are NOT part of `config.yaml`. Write the sources file now:
+Photo sources are stored in a **separate file** (`~/.picframe/sources.yaml`) — they are NOT part of `config.yaml`. Write the sources file now. Use full paths (`/home/pi/...`), never `~`: not every part of the API expands `~`, and the preview on the frame failed on mnbframe because of it (PL-211, 2026-11-23; the API now expands `~` paths at startup).
 
 ```bash
 nano ~/.picframe/sources.yaml
@@ -269,12 +269,12 @@ nano ~/.picframe/sources.yaml
 sources:
   - id: "kfr_mnbframe"
     name: "Migrated Source (kfr_mnbframe)"
-    local_path: "~/Pictures/kfr_mnbframe"
+    local_path: "/home/pi/Pictures/kfr_mnbframe"
     rclone_remote: "kfr-mnbframe:kfr_mnbframe"
     enabled: true
   - id: "LVRK"
     name: "Lawson"
-    local_path: "~/Pictures/LVRK"
+    local_path: "/home/pi/Pictures/LVRK"
     rclone_remote: "kfr-mnbframe:LVRK"
     enabled: true
 ```

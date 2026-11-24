@@ -31,6 +31,7 @@ from src.services.recovery_service import MAX_UPLOAD_BYTES as RECOVERY_MAX_UPLOA
 from src.services.update_service import start_update_scheduler
 from src.services import demo_service, frame_registry
 from src.services.systemd_service import reconcile_sleep_timers
+from src.services.source_manager import source_manager
 from src.config.settings import get_settings
 
 
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan: start background tasks on startup."""
     asyncio.create_task(start_update_scheduler())
     demo_service.expire_if_due()
+    source_manager.expand_saved_paths()  # before the registry follows album saves (PL-211)
     frame_registry.start()
     display = get_settings().display
     asyncio.create_task(

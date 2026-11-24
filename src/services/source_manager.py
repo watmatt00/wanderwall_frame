@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,19 @@ class PhotoSource(BaseModel):
     local_path: str
     rclone_remote: Optional[str] = None
     enabled: bool = True
+
+    @field_validator("local_path")
+    @classmethod
+    def expand_home(cls, v: str) -> str:
+        """
+        Store the album folder as a full path (PL-211).
+
+        Albums written by hand (the v3 -> v4 upgrade doc) say `~/Pictures/<id>`, and
+        `install.sh --from-v4` copies them as is. Code that builds `Path(local_path)`
+        without expanduser() then looks for a folder named `~` (the preview 404'd on
+        mnbframe), so every PhotoSource carries the expanded path.
+        """
+        return str(Path(v).expanduser()) if v.startswith("~") else v
 
 
 def free_cloud_folder(base: str, taken: set[str]) -> str:
@@ -117,6 +130,39 @@ class SourceManager:
         except Exception as e:
             logger.error(f"Failed to load sources: {e}")
             return []
+
+    def expand_saved_paths(self) -> list[str]:
+        """
+        Rewrite sources.yaml once if it still holds `~` album paths (PL-211).
+
+        Loading already expands them (PhotoSource.expand_home); this makes the file
+        match, so the saved data is the same on every frame. Returns the album ids
+        it changed (empty when there was nothing to do or the file is unreadable).
+        """
+        if not self._path.exists():
+            return []
+        try:
+            with open(self._path) as f:
+                data = yaml.safe_load(f) or {}
+        except (OSError, yaml.YAMLError) as e:
+            logger.error(f"Failed to read sources for path check: {e}")
+            return []
+        changed = [
+            str(s.get("id")) for s in data.get("sources", [])
+            if isinstance(s, dict) and str(s.get("local_path", "")).startswith("~")
+        ]
+        if not changed:
+            return []
+        sources = self._load_sources()
+        if not sources:
+            return []  # unreadable entries: leave the file alone
+        try:
+            self._save_sources(sources)
+        except OSError as e:  # the API must start anyway; loading still expands the paths
+            logger.error(f"Failed to save expanded album paths: {e}")
+            return []
+        logger.info(f"Album paths expanded from ~ to full paths (PL-211): {changed}")
+        return changed
 
     def _save_sources(self, sources: list[PhotoSource]):
         """Save sources to YAML file."""
